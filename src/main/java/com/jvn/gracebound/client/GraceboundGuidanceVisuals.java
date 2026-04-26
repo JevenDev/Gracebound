@@ -2,25 +2,38 @@ package com.jvn.gracebound.client;
 
 import com.jvn.gracebound.config.GraceboundConfig;
 import com.jvn.gracebound.guidance.GuidanceTarget;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import java.util.Optional;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.util.Mth;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import org.joml.Matrix4f;
-import org.joml.Vector3f;
 
 public final class GraceboundGuidanceVisuals {
-    private static final DustParticleOptions GOLD_DUST = new DustParticleOptions(new Vector3f(1.0F, 0.72F, 0.18F), 0.82F);
-    private static final DustParticleOptions PALE_GOLD_DUST = new DustParticleOptions(new Vector3f(1.0F, 0.9F, 0.48F), 0.56F);
+    private static final double ABSOLUTE_MAX_STREAM_DISTANCE = 6.0D;
     private static final Vec3 UP = new Vec3(0.0D, 1.0D, 0.0D);
+    private static final RenderType GRACE_RENDER_TYPE = RenderType.create(
+            "gracebound_guidance",
+            DefaultVertexFormat.POSITION_COLOR,
+            VertexFormat.Mode.QUADS,
+            512,
+            false,
+            true,
+            RenderType.CompositeState.builder()
+                    .setShaderState(RenderType.RENDERTYPE_LIGHTNING_SHADER)
+                    .setTransparencyState(RenderType.TRANSLUCENT_TRANSPARENCY)
+                    .setCullState(RenderType.NO_CULL)
+                    .setDepthTestState(RenderType.LEQUAL_DEPTH_TEST)
+                    .setWriteMaskState(RenderType.COLOR_WRITE)
+                    .createCompositeState(false)
+    );
 
     private static Optional<GuidanceTarget> lastTarget = Optional.empty();
     private static float visibility;
@@ -32,14 +45,11 @@ public final class GraceboundGuidanceVisuals {
         updateVisibility(target.isPresent());
         target.ifPresent(value -> lastTarget = Optional.of(value));
 
-        if (visibility <= 0.01F || lastTarget.isEmpty() || !(player.level() instanceof ClientLevel level)) {
+        if (visibility <= 0.01F || lastTarget.isEmpty()) {
             if (visibility <= 0.01F) {
                 lastTarget = Optional.empty();
             }
-            return;
         }
-
-        spawnGuidanceParticles(level, player, lastTarget.get(), visibility);
     }
 
     public static void renderWorld(RenderLevelStageEvent event) {
@@ -75,46 +85,6 @@ public final class GraceboundGuidanceVisuals {
         }
     }
 
-    private static void spawnGuidanceParticles(ClientLevel level, Player player, GuidanceTarget target, float intensity) {
-        Vec3 eye = player.getEyePosition();
-        Vec3 destination = Vec3.atCenterOf(target.pos().pos());
-        Vec3 direction = destination.subtract(eye);
-        if (direction.lengthSqr() < 0.0001D) {
-            return;
-        }
-
-        Vec3 forward = direction.normalize();
-        double distance = Math.min(GraceboundConfig.maxBeamDistance, Math.sqrt(direction.lengthSqr()));
-        Vec3 origin = eye.add(forward.scale(GraceboundConfig.beamOriginOffset)).add(0.0D, GraceboundConfig.beamVerticalOffset, 0.0D);
-        double startDistance = Math.min(distance, GraceboundConfig.beamStartDistance);
-        double streamLength = Math.max(0.1D, distance - startDistance);
-        int count = Math.max(1, (int)Math.ceil(streamLength * GraceboundConfig.beamDensity * intensity));
-        RandomSource random = player.getRandom();
-        Vec3 right = forward.cross(UP);
-        if (right.lengthSqr() < 0.0001D) {
-            right = new Vec3(1.0D, 0.0D, 0.0D);
-        } else {
-            right = right.normalize();
-        }
-        Vec3 lift = right.cross(forward).normalize();
-
-        for (int i = 0; i < count; i++) {
-            double progress = ((double)i + random.nextDouble()) / count;
-            double taper = 1.0D - progress;
-            double travel = startDistance + progress * streamLength;
-            double swirl = Math.sin((level.getGameTime() + i * 7) * 0.24D + progress * Math.PI * 2.0D) * 0.18D * taper;
-            double drift = (random.nextDouble() - 0.5D) * 0.22D * taper;
-            Vec3 pos = origin
-                    .add(forward.scale(travel))
-                    .add(right.scale(swirl + drift))
-                    .add(lift.scale((random.nextDouble() - 0.25D) * 0.18D * taper));
-            Vec3 velocity = forward.scale(0.012D + 0.018D * taper)
-                    .add(right.scale(swirl * 0.015D))
-                    .add(0.0D, 0.006D * taper, 0.0D);
-            level.addParticle(i % 4 == 0 ? PALE_GOLD_DUST : GOLD_DUST, pos.x, pos.y, pos.z, velocity.x, velocity.y, velocity.z);
-        }
-    }
-
     private static void renderGuidanceRibbon(RenderLevelStageEvent event, Player player, GuidanceTarget target, float intensity) {
         if (!(player.level() instanceof ClientLevel level)) {
             return;
@@ -129,11 +99,12 @@ public final class GraceboundGuidanceVisuals {
         }
 
         Vec3 forward = direction.normalize();
-        double distance = Math.min(GraceboundConfig.maxBeamDistance, Math.sqrt(direction.lengthSqr()));
-        double startDistance = Math.min(distance, GraceboundConfig.beamStartDistance);
-        double streamLength = Math.max(0.1D, distance - startDistance);
-        Vec3 origin = eye.add(forward.scale(GraceboundConfig.beamOriginOffset)).add(0.0D, GraceboundConfig.beamVerticalOffset, 0.0D);
-        Vec3 start = origin.add(forward.scale(startDistance));
+        double distance = Math.min(Math.min(GraceboundConfig.maxBeamDistance, ABSOLUTE_MAX_STREAM_DISTANCE), Math.sqrt(direction.lengthSqr()));
+        Minecraft minecraft = Minecraft.getInstance();
+        boolean firstPerson = minecraft.getCameraEntity() == player && minecraft.options.getCameraType().isFirstPerson();
+        double startDistance = 0.0D;
+        double streamLength = Math.max(0.1D, distance);
+        Vec3 origin = eye.add(0.0D, GraceboundConfig.beamVerticalOffset, 0.0D);
 
         Vec3 right = forward.cross(UP);
         if (right.lengthSqr() < 0.0001D) {
@@ -142,7 +113,13 @@ public final class GraceboundGuidanceVisuals {
             right = right.normalize();
         }
         Vec3 lift = right.cross(forward).normalize();
-        int segments = Math.max(8, (int)Math.ceil(streamLength * 1.6D));
+        if (firstPerson) {
+            origin = origin
+                    .add(0.0D, -0.35D, 0.0D);
+        }
+        Vec3 start = origin.add(forward.scale(startDistance));
+        int strandCount = Mth.clamp((int)Math.round(4.0D + GraceboundConfig.beamDensity * 4.0D), 4, 9);
+        int segments = Math.max(24, (int)Math.ceil(streamLength * (4.5D + GraceboundConfig.beamDensity * 3.0D)));
         double time = level.getGameTime() + partialTick;
 
         PoseStack poseStack = event.getPoseStack();
@@ -151,39 +128,97 @@ public final class GraceboundGuidanceVisuals {
         poseStack.translate(-camera.x, -camera.y, -camera.z);
         Matrix4f matrix = poseStack.last().pose();
 
-        VertexConsumer consumer = Minecraft.getInstance().renderBuffers().bufferSource().getBuffer(RenderType.lightning());
-        for (int i = 0; i < segments; i++) {
-            float t0 = (float)i / segments;
-            float t1 = (float)(i + 1) / segments;
+        VertexConsumer consumer = minecraft.renderBuffers().bufferSource().getBuffer(GRACE_RENDER_TYPE);
+        for (int strand = 0; strand < strandCount; strand++) {
+            float strandT = strandCount == 1 ? 0.5F : (float)strand / (strandCount - 1);
+            float centerBias = 1.0F - Math.abs(strandT - 0.5F) * 2.0F;
+            double strandPhase = strand * 1.73D;
+            double strandLateral = (strandT - 0.5D) * 0.12D;
+            float strandAlphaScale = 0.55F + centerBias * 0.95F;
 
-            Vec3 c0 = ribbonPoint(start, forward, right, lift, streamLength, time, t0);
-            Vec3 c1 = ribbonPoint(start, forward, right, lift, streamLength, time, t1);
-            Vec3 side0 = ribbonSide(forward, right, c0, camera);
-            Vec3 side1 = ribbonSide(forward, right, c1, camera);
+            for (int i = 0; i < segments; i++) {
+                float t0 = (float)i / segments;
+                float t1 = (float)(i + 1) / segments;
 
-            float width0 = (0.12F + (1.0F - t0) * 0.22F) * intensity;
-            float width1 = (0.12F + (1.0F - t1) * 0.22F) * intensity;
-            float alpha0 = (0.22F + (1.0F - t0) * 0.45F) * intensity;
-            float alpha1 = (0.22F + (1.0F - t1) * 0.45F) * intensity;
+                Vec3 c0 = ribbonPoint(start, forward, right, lift, streamLength, time, t0, strandPhase, strandLateral);
+                Vec3 c1 = ribbonPoint(start, forward, right, lift, streamLength, time, t1, strandPhase, strandLateral);
+                Vec3 side0 = ribbonSide(forward, right, c0, camera);
+                Vec3 side1 = ribbonSide(forward, right, c1, camera);
 
-            addRibbonQuad(consumer, matrix, c0, c1, side0, side1, width0 * 1.55F, width1 * 1.55F, t0, t1, alpha0 * 0.5F, alpha1 * 0.5F);
-            addRibbonQuad(consumer, matrix, c0, c1, side0, side1, width0, width1, t0, t1, alpha0, alpha1);
+                float width0 = (0.008F + (1.0F - t0) * 0.018F) * intensity * (0.75F + centerBias * 0.35F);
+                float width1 = (0.008F + (1.0F - t1) * 0.018F) * intensity * (0.75F + centerBias * 0.35F);
+                float alpha0 = (0.14F + (1.0F - t0) * 0.28F) * intensity * strandAlphaScale;
+                float alpha1 = (0.14F + (1.0F - t1) * 0.28F) * intensity * strandAlphaScale;
+                float headFade0 = Mth.clamp(t0 / 0.14F, 0.0F, 1.0F);
+                float headFade1 = Mth.clamp(t1 / 0.14F, 0.0F, 1.0F);
+                headFade0 *= headFade0;
+                headFade1 *= headFade1;
+                float tailFade0 = Mth.clamp((1.0F - t0) / 0.3F, 0.0F, 1.0F);
+                float tailFade1 = Mth.clamp((1.0F - t1) / 0.3F, 0.0F, 1.0F);
+                tailFade0 *= tailFade0;
+                tailFade1 *= tailFade1;
+                alpha0 *= headFade0 * tailFade0;
+                alpha1 *= headFade1 * tailFade1;
+                width0 *= (0.8F + 0.2F * headFade0) * (0.7F + 0.3F * tailFade0);
+                width1 *= (0.8F + 0.2F * headFade1) * (0.7F + 0.3F * tailFade1);
+
+                addRibbonQuad(consumer, matrix, c0, c1, side0, side1, width0, width1, t0, t1, alpha0, alpha1);
+
+                if (centerBias > 0.92F) {
+                    addRibbonQuad(consumer, matrix, c0, c1, side0, side1, width0 * 0.62F, width1 * 0.62F, t0, t1, alpha0 * 1.35F, alpha1 * 1.35F);
+                }
+
+                if (centerBias > 0.62F) {
+                    float pulse = Mth.clamp((float)Math.sin((t0 + t1) * 37.0F + strandPhase * 1.9D) * 0.5F + 0.5F, 0.0F, 1.0F);
+                    float whiteAlpha0 = alpha0 * (0.18F + centerBias * 0.4F) * pulse;
+                    float whiteAlpha1 = alpha1 * (0.18F + centerBias * 0.4F) * pulse;
+                    if (whiteAlpha0 > 0.004F || whiteAlpha1 > 0.004F) {
+                        addRibbonQuadTint(
+                                consumer,
+                                matrix,
+                                c0,
+                                c1,
+                                side0,
+                                side1,
+                                width0 * 0.35F,
+                                width1 * 0.35F,
+                                255,
+                                244,
+                                224,
+                                whiteAlpha0,
+                                whiteAlpha1
+                        );
+                    }
+                }
+            }
         }
 
-        Minecraft.getInstance().renderBuffers().bufferSource().endBatch(RenderType.lightning());
+        minecraft.renderBuffers().bufferSource().endBatch(GRACE_RENDER_TYPE);
         poseStack.popPose();
     }
 
-    private static Vec3 ribbonPoint(Vec3 start, Vec3 forward, Vec3 right, Vec3 lift, double streamLength, double time, float progress) {
+    private static Vec3 ribbonPoint(
+            Vec3 start,
+            Vec3 forward,
+            Vec3 right,
+            Vec3 lift,
+            double streamLength,
+            double time,
+            float progress,
+            double strandPhase,
+            double strandLateral) {
         double taper = 1.0D - progress;
         double travel = progress * streamLength;
-        double swirl = Math.sin(time * 0.28D + progress * 13.0D) * 0.16D * taper;
-        double arch = Math.sin(progress * Math.PI) * 0.1D;
-        double flutter = Math.cos(time * 0.19D + progress * 8.0D) * 0.05D * taper;
+        double rise = Math.sin(progress * Math.PI) * (0.44D + streamLength * 0.02D) + progress * 0.2D;
+        double meander = Math.sin(time * 0.22D + progress * 9.5D + strandPhase) * 0.055D * taper;
+        double flutter = Math.cos(time * 0.31D + progress * 14.0D + strandPhase * 1.7D) * 0.018D * taper;
+        double strandSpread = strandLateral * (0.72D + taper * 0.28D);
+        double verticalBend = Math.sin(progress * Math.PI * 1.2D + strandPhase) * 0.015D;
         return start
                 .add(forward.scale(travel))
-                .add(right.scale(swirl))
-                .add(lift.scale(arch + flutter));
+                .add(UP.scale(rise))
+                .add(right.scale(strandSpread + meander))
+                .add(lift.scale(flutter + verticalBend));
     }
 
     private static Vec3 ribbonSide(Vec3 forward, Vec3 fallbackRight, Vec3 center, Vec3 camera) {
@@ -208,6 +243,46 @@ public final class GraceboundGuidanceVisuals {
             float progressEnd,
             float alphaStart,
             float alphaEnd) {
+        int gStart = Mth.clamp((int)(206.0F + (1.0F - progressStart) * 34.0F), 0, 255);
+        int gEnd = Mth.clamp((int)(206.0F + (1.0F - progressEnd) * 34.0F), 0, 255);
+        int bStart = Mth.clamp((int)(52.0F + (1.0F - progressStart) * 24.0F), 0, 255);
+        int bEnd = Mth.clamp((int)(52.0F + (1.0F - progressEnd) * 24.0F), 0, 255);
+        addRibbonQuadTint(consumer, matrix, start, end, sideStart, sideEnd, widthStart, widthEnd, 255, gStart, bStart, alphaStart, alphaEnd, gEnd, bEnd);
+    }
+
+    private static void addRibbonQuadTint(
+            VertexConsumer consumer,
+            Matrix4f matrix,
+            Vec3 start,
+            Vec3 end,
+            Vec3 sideStart,
+            Vec3 sideEnd,
+            float widthStart,
+            float widthEnd,
+            int r,
+            int g,
+            int b,
+            float alphaStart,
+            float alphaEnd) {
+        addRibbonQuadTint(consumer, matrix, start, end, sideStart, sideEnd, widthStart, widthEnd, r, g, b, alphaStart, alphaEnd, g, b);
+    }
+
+    private static void addRibbonQuadTint(
+            VertexConsumer consumer,
+            Matrix4f matrix,
+            Vec3 start,
+            Vec3 end,
+            Vec3 sideStart,
+            Vec3 sideEnd,
+            float widthStart,
+            float widthEnd,
+            int r,
+            int gStart,
+            int bStart,
+            float alphaStart,
+            float alphaEnd,
+            int gEnd,
+            int bEnd) {
         Vec3 sL = start.subtract(sideStart.scale(widthStart));
         Vec3 sR = start.add(sideStart.scale(widthStart));
         Vec3 eL = end.subtract(sideEnd.scale(widthEnd));
@@ -215,19 +290,15 @@ public final class GraceboundGuidanceVisuals {
 
         int aStart = Mth.clamp((int)(alphaStart * 255.0F), 0, 255);
         int aEnd = Mth.clamp((int)(alphaEnd * 255.0F), 0, 255);
-        int gStart = Mth.clamp((int)(184.0F + (1.0F - progressStart) * 58.0F), 0, 255);
-        int gEnd = Mth.clamp((int)(184.0F + (1.0F - progressEnd) * 58.0F), 0, 255);
-        int bStart = Mth.clamp((int)(76.0F + (1.0F - progressStart) * 70.0F), 0, 255);
-        int bEnd = Mth.clamp((int)(76.0F + (1.0F - progressEnd) * 70.0F), 0, 255);
 
-        consumer.addVertex(matrix, (float)sL.x, (float)sL.y, (float)sL.z).setColor(255, gStart, bStart, aStart);
-        consumer.addVertex(matrix, (float)eL.x, (float)eL.y, (float)eL.z).setColor(255, gEnd, bEnd, aEnd);
-        consumer.addVertex(matrix, (float)eR.x, (float)eR.y, (float)eR.z).setColor(255, gEnd, bEnd, aEnd);
-        consumer.addVertex(matrix, (float)sR.x, (float)sR.y, (float)sR.z).setColor(255, gStart, bStart, aStart);
+        consumer.addVertex(matrix, (float)sL.x, (float)sL.y, (float)sL.z).setColor(r, gStart, bStart, aStart);
+        consumer.addVertex(matrix, (float)eL.x, (float)eL.y, (float)eL.z).setColor(r, gEnd, bEnd, aEnd);
+        consumer.addVertex(matrix, (float)eR.x, (float)eR.y, (float)eR.z).setColor(r, gEnd, bEnd, aEnd);
+        consumer.addVertex(matrix, (float)sR.x, (float)sR.y, (float)sR.z).setColor(r, gStart, bStart, aStart);
 
-        consumer.addVertex(matrix, (float)sR.x, (float)sR.y, (float)sR.z).setColor(255, gStart, bStart, aStart);
-        consumer.addVertex(matrix, (float)eR.x, (float)eR.y, (float)eR.z).setColor(255, gEnd, bEnd, aEnd);
-        consumer.addVertex(matrix, (float)eL.x, (float)eL.y, (float)eL.z).setColor(255, gEnd, bEnd, aEnd);
-        consumer.addVertex(matrix, (float)sL.x, (float)sL.y, (float)sL.z).setColor(255, gStart, bStart, aStart);
+        consumer.addVertex(matrix, (float)sR.x, (float)sR.y, (float)sR.z).setColor(r, gStart, bStart, aStart);
+        consumer.addVertex(matrix, (float)eR.x, (float)eR.y, (float)eR.z).setColor(r, gEnd, bEnd, aEnd);
+        consumer.addVertex(matrix, (float)eL.x, (float)eL.y, (float)eL.z).setColor(r, gEnd, bEnd, aEnd);
+        consumer.addVertex(matrix, (float)sL.x, (float)sL.y, (float)sL.z).setColor(r, gStart, bStart, aStart);
     }
 }

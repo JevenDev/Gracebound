@@ -31,24 +31,24 @@ public final class GraceboundConfig {
             .defineInRange("fadeOutTicks", 20, 0, 200);
 
     private static final ModConfigSpec.DoubleValue BEAM_DENSITY = BUILDER
-            .comment("Approximate particles per block along the short guidance stream.")
-            .defineInRange("beamDensity", 0.85D, 0.1D, 4.0D);
+            .comment("Controls how many wispy strands are drawn in the guidance stream.")
+            .defineInRange("beamDensity", 0.62D, 0.1D, 4.0D);
 
     private static final ModConfigSpec.DoubleValue BEAM_ORIGIN_OFFSET = BUILDER
             .comment("Forward offset from your eyes where the stream is anchored.")
-            .defineInRange("beamOriginOffset", 0.4D, 0.0D, 2.0D);
+            .defineInRange("beamOriginOffset", 0.0D, 0.0D, 2.0D);
 
     private static final ModConfigSpec.DoubleValue BEAM_START_DISTANCE = BUILDER
             .comment("Extra distance from the anchor before particles begin rendering.")
-            .defineInRange("beamStartDistance", 0.25D, 0.0D, 3.0D);
+            .defineInRange("beamStartDistance", 0.0D, 0.0D, 3.0D);
 
     private static final ModConfigSpec.DoubleValue BEAM_VERTICAL_OFFSET = BUILDER
             .comment("Vertical offset from eye level where the stream originates. Negative values lower it toward torso height.")
-            .defineInRange("beamVerticalOffset", -0.55D, -2.0D, 1.0D);
+            .defineInRange("beamVerticalOffset", -0.92D, -2.0D, 1.0D);
 
     private static final ModConfigSpec.DoubleValue MAX_BEAM_DISTANCE = BUILDER
             .comment("Maximum visual length of the guidance stream in blocks.")
-            .defineInRange("maxBeamDistance", 16.0D, 4.0D, 96.0D);
+            .defineInRange("maxBeamDistance", 6.0D, 4.0D, 96.0D);
 
     private static final ModConfigSpec.BooleanValue SHOW_MESSAGES = BUILDER
             .comment("Whether Gracebound shows small client-side guidance messages.")
@@ -61,11 +61,11 @@ public final class GraceboundConfig {
     public static int fadeInTicks = 10;
     public static int visibleDurationTicks = 120;
     public static int fadeOutTicks = 20;
-    public static double beamDensity = 0.85D;
-    public static double beamOriginOffset = 0.4D;
-    public static double beamStartDistance = 0.25D;
-    public static double beamVerticalOffset = -0.55D;
-    public static double maxBeamDistance = 16.0D;
+    public static double beamDensity = 0.62D;
+    public static double beamOriginOffset = 0.0D;
+    public static double beamStartDistance = 0.0D;
+    public static double beamVerticalOffset = -0.92D;
+    public static double maxBeamDistance = 6.0D;
     public static boolean showMessages = true;
 
     private GraceboundConfig() {
