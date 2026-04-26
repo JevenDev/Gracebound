@@ -18,6 +18,8 @@ import org.joml.Matrix4f;
 
 public final class GraceboundGuidanceVisuals {
     private static final double ABSOLUTE_MAX_STREAM_DISTANCE = 6.0D;
+    private static final double FULL_REACH_DISTANCE = 16.0D;
+    private static final double FULL_REACH_BLEND_DISTANCE = 6.0D;
     private static final Vec3 UP = new Vec3(0.0D, 1.0D, 0.0D);
     private static final RenderType GRACE_RENDER_TYPE = RenderType.create(
             "gracebound_guidance",
@@ -103,7 +105,18 @@ public final class GraceboundGuidanceVisuals {
         }
 
         Vec3 forward = direction.normalize();
-        double distance = Math.min(Math.min(GraceboundConfig.maxBeamDistance, ABSOLUTE_MAX_STREAM_DISTANCE), Math.sqrt(direction.lengthSqr()));
+        double rawDistance = Math.sqrt(direction.lengthSqr());
+        double maxDistance = Math.min(GraceboundConfig.maxBeamDistance, ABSOLUTE_MAX_STREAM_DISTANCE);
+        double distance;
+        if (rawDistance <= FULL_REACH_DISTANCE) {
+            distance = rawDistance;
+        } else if (rawDistance >= FULL_REACH_DISTANCE + FULL_REACH_BLEND_DISTANCE) {
+            distance = Math.min(maxDistance, rawDistance);
+        } else {
+            double t = 1.0D - ((rawDistance - FULL_REACH_DISTANCE) / FULL_REACH_BLEND_DISTANCE);
+            double blended = maxDistance + (rawDistance - maxDistance) * t;
+            distance = Math.min(rawDistance, blended);
+        }
         Minecraft minecraft = Minecraft.getInstance();
         boolean firstPerson = minecraft.getCameraEntity() == player && minecraft.options.getCameraType().isFirstPerson();
         double startDistance = 0.0D;
