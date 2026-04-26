@@ -2,8 +2,10 @@ package com.jvn.gracebound.client;
 
 import com.jvn.gracebound.Gracebound;
 import com.jvn.gracebound.config.GraceboundConfig;
+import com.jvn.gracebound.guidance.GuidanceTargetResolver;
 import com.jvn.gracebound.guidance.GuidanceMode;
 import com.jvn.gracebound.guidance.RuntimeGuidanceState;
+import com.jvn.gracebound.guidance.TargetResolution;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -46,11 +48,19 @@ public final class GraceboundClientEvents {
 
         @SubscribeEvent
         public static void onClientTick(ClientTickEvent.Post event) {
+            Minecraft minecraft = Minecraft.getInstance();
             while (CYCLE_MODE.consumeClick()) {
                 GuidanceMode mode = RuntimeGuidanceState.cycleMode();
-                Minecraft minecraft = Minecraft.getInstance();
                 if (GraceboundConfig.showMessages && minecraft.player != null) {
                     minecraft.player.displayClientMessage(mode.displayMessage(), true);
+                }
+            }
+
+            if (minecraft.player != null) {
+                boolean allowDeathGuidance = RuntimeGuidanceState.mode() == GuidanceMode.ALWAYS;
+                TargetResolution resolution = GuidanceTargetResolver.resolve(minecraft.player, allowDeathGuidance);
+                if (resolution.crossDimensionTarget().isPresent()) {
+                    GraceboundClientMessages.crossDimension();
                 }
             }
         }
