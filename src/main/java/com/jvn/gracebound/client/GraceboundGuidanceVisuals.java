@@ -38,6 +38,7 @@ public final class GraceboundGuidanceVisuals {
     );
 
     private static Optional<GuidanceTarget> lastTarget = Optional.empty();
+    private static Optional<GuidanceTarget> pendingTarget = Optional.empty();
     private static float visibility;
     private static boolean trailInitialized;
     private static Vec3 delayedOrigin = Vec3.ZERO;
@@ -47,11 +48,40 @@ public final class GraceboundGuidanceVisuals {
     }
 
     public static void tick(Player player, Optional<GuidanceTarget> target) {
-        updateVisibility(target.isPresent());
-        target.ifPresent(value -> lastTarget = Optional.of(value));
+        if (lastTarget.isEmpty()) {
+            if (target.isPresent()) {
+                lastTarget = target;
+                pendingTarget = Optional.empty();
+                updateVisibility(true);
+            } else {
+                updateVisibility(false);
+                if (visibility <= 0.01F) {
+                    trailInitialized = false;
+                }
+            }
+            return;
+        }
 
-        if (visibility <= 0.01F || lastTarget.isEmpty()) {
-            if (visibility <= 0.01F) {
+        if (target.isPresent() && target.get().equals(lastTarget.get())) {
+            pendingTarget = Optional.empty();
+            updateVisibility(true);
+            return;
+        }
+
+        if (target.isPresent()) {
+            pendingTarget = target;
+        } else {
+            pendingTarget = Optional.empty();
+        }
+
+        // Retract current stream before switching targets to avoid abrupt jumps.
+        updateVisibility(false);
+        if (visibility <= 0.01F) {
+            if (pendingTarget.isPresent()) {
+                lastTarget = pendingTarget;
+                pendingTarget = Optional.empty();
+                updateVisibility(true);
+            } else {
                 lastTarget = Optional.empty();
                 trailInitialized = false;
             }
