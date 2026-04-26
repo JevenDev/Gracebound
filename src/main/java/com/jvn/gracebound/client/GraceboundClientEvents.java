@@ -1,6 +1,7 @@
 package com.jvn.gracebound.client;
 
 import com.jvn.gracebound.Gracebound;
+import com.jvn.gracebound.client.compat.xaero.XaeroCompatBridge;
 import com.jvn.gracebound.config.GraceboundConfig;
 import com.jvn.gracebound.guidance.GuidanceTargetResolver;
 import com.jvn.gracebound.guidance.GuidanceMode;
@@ -71,6 +72,7 @@ public final class GraceboundClientEvents {
                 TargetResolution resolution = GuidanceTargetResolver.resolve(minecraft.player);
                 GraceboundClientMessages.updateCrossDimension(resolution);
                 GraceboundGuidanceVisuals.tick(minecraft.player, resolution.target());
+                XaeroCompatBridge.clientTick(minecraft.player, resolution.target());
 
                 ClientLevel level = minecraft.level;
                 if (level != null && GraceboundGameRules.showOthersGuidanceEnabled(level)) {
@@ -89,6 +91,7 @@ public final class GraceboundClientEvents {
                 inWorldLastTick = false;
                 GraceboundClientMessages.clearState();
                 GraceboundGuidanceVisuals.clearAll();
+                XaeroCompatBridge.clear();
             }
         }
 
