@@ -37,6 +37,9 @@ public final class GraceboundGuidanceVisuals {
 
     private static Optional<GuidanceTarget> lastTarget = Optional.empty();
     private static float visibility;
+    private static boolean trailInitialized;
+    private static Vec3 delayedOrigin = Vec3.ZERO;
+    private static Vec3 delayedForward = new Vec3(0.0D, 0.0D, 1.0D);
 
     private GraceboundGuidanceVisuals() {
     }
@@ -48,6 +51,7 @@ public final class GraceboundGuidanceVisuals {
         if (visibility <= 0.01F || lastTarget.isEmpty()) {
             if (visibility <= 0.01F) {
                 lastTarget = Optional.empty();
+                trailInitialized = false;
             }
         }
     }
@@ -118,9 +122,30 @@ public final class GraceboundGuidanceVisuals {
                     .add(0.0D, -0.35D, 0.0D);
         }
         Vec3 start = origin.add(forward.scale(startDistance));
+        if (!trailInitialized) {
+            delayedOrigin = start;
+            delayedForward = forward;
+            trailInitialized = true;
+        } else if (delayedOrigin.distanceToSqr(start) > 6.25D) {
+            delayedOrigin = start;
+            delayedForward = forward;
+        }
+        Vec3 previousDelayedOrigin = delayedOrigin;
+        Vec3 previousDelayedForward = delayedForward;
+        delayedOrigin = delayedOrigin.lerp(start, 0.08D);
+        Vec3 mixedForward = delayedForward.scale(0.92D).add(forward.scale(0.08D));
+        delayedForward = mixedForward.lengthSqr() > 0.0001D ? mixedForward.normalize() : forward;
+
+        Vec3 lagOffset = previousDelayedOrigin.subtract(start);
+        Vec3 lagLateral = lagOffset.subtract(forward.scale(lagOffset.dot(forward)));
+        Vec3 forwardDelta = previousDelayedForward.subtract(forward);
+        Vec3 turnLateral = forwardDelta.subtract(forward.scale(forwardDelta.dot(forward))).scale(streamLength * 0.35D);
+        Vec3 bendVector = lagLateral.add(turnLateral);
+
         int strandCount = Mth.clamp((int)Math.round(4.0D + GraceboundConfig.beamDensity * 4.0D), 4, 9);
         int segments = Math.max(24, (int)Math.ceil(streamLength * (4.5D + GraceboundConfig.beamDensity * 3.0D)));
         double time = level.getGameTime() + partialTick;
+        double bendStrength = Mth.clamp(player.getDeltaMovement().length() * 4.0D + lagLateral.length() * 2.8D, 0.0D, 1.0D);
 
         PoseStack poseStack = event.getPoseStack();
         Vec3 camera = event.getCamera().getPosition();
@@ -140,8 +165,8 @@ public final class GraceboundGuidanceVisuals {
                 float t0 = (float)i / segments;
                 float t1 = (float)(i + 1) / segments;
 
-                Vec3 c0 = ribbonPoint(start, forward, right, lift, streamLength, time, t0, strandPhase, strandLateral);
-                Vec3 c1 = ribbonPoint(start, forward, right, lift, streamLength, time, t1, strandPhase, strandLateral);
+                Vec3 c0 = ribbonPoint(start, forward, right, lift, bendVector, bendStrength, streamLength, time, t0, strandPhase, strandLateral);
+                Vec3 c1 = ribbonPoint(start, forward, right, lift, bendVector, bendStrength, streamLength, time, t1, strandPhase, strandLateral);
                 Vec3 side0 = ribbonSide(forward, right, c0, camera);
                 Vec3 side1 = ribbonSide(forward, right, c1, camera);
 
@@ -216,20 +241,26 @@ public final class GraceboundGuidanceVisuals {
             Vec3 forward,
             Vec3 right,
             Vec3 lift,
+            Vec3 bendVector,
+            double bendStrength,
             double streamLength,
             double time,
             float progress,
             double strandPhase,
             double strandLateral) {
         double taper = 1.0D - progress;
+        double mid = Math.sin(progress * Math.PI);
         double travel = progress * streamLength;
-        double rise = Math.sin(progress * Math.PI) * (0.44D + streamLength * 0.02D) + progress * 0.2D;
+        Vec3 base = start.add(forward.scale(travel));
+        double bendShape = mid * (1.0D - progress * 0.45D);
+        Vec3 curve = bendVector.scale(bendShape * (0.35D + bendStrength * 0.9D));
+        double rise = mid * (0.08D + streamLength * 0.055D);
         double meander = Math.sin(time * 0.22D + progress * 9.5D + strandPhase) * 0.055D * taper;
         double flutter = Math.cos(time * 0.31D + progress * 14.0D + strandPhase * 1.7D) * 0.018D * taper;
         double strandSpread = strandLateral * (0.72D + taper * 0.28D);
         double verticalBend = Math.sin(progress * Math.PI * 1.2D + strandPhase) * 0.015D;
-        return start
-                .add(forward.scale(travel))
+        return base
+                .add(curve)
                 .add(UP.scale(rise))
                 .add(right.scale(strandSpread + meander))
                 .add(lift.scale(flutter + verticalBend));
