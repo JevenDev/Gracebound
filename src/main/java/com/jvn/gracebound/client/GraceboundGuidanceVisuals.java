@@ -165,7 +165,21 @@ public final class GraceboundGuidanceVisuals {
                 addRibbonQuad(consumer, matrix, c0, c1, side0, side1, width0, width1, t0, t1, alpha0, alpha1);
 
                 if (centerBias > 0.92F) {
-                    addRibbonQuad(consumer, matrix, c0, c1, side0, side1, width0 * 0.62F, width1 * 0.62F, t0, t1, alpha0 * 1.35F, alpha1 * 1.35F);
+                    addRibbonQuadTint(
+                            consumer,
+                            matrix,
+                            c0,
+                            c1,
+                            side0,
+                            side1,
+                            width0 * 0.62F,
+                            width1 * 0.62F,
+                            255,
+                            248,
+                            236,
+                            alpha0 * 1.12F,
+                            alpha1 * 1.12F
+                    );
                 }
 
                 if (centerBias > 0.62F) {
@@ -183,8 +197,8 @@ public final class GraceboundGuidanceVisuals {
                                 width0 * 0.35F,
                                 width1 * 0.35F,
                                 255,
-                                244,
-                                224,
+                                252,
+                                246,
                                 whiteAlpha0,
                                 whiteAlpha1
                         );
@@ -243,10 +257,10 @@ public final class GraceboundGuidanceVisuals {
             float progressEnd,
             float alphaStart,
             float alphaEnd) {
-        int gStart = Mth.clamp((int)(206.0F + (1.0F - progressStart) * 34.0F), 0, 255);
-        int gEnd = Mth.clamp((int)(206.0F + (1.0F - progressEnd) * 34.0F), 0, 255);
-        int bStart = Mth.clamp((int)(52.0F + (1.0F - progressStart) * 24.0F), 0, 255);
-        int bEnd = Mth.clamp((int)(52.0F + (1.0F - progressEnd) * 24.0F), 0, 255);
+        int gStart = Mth.clamp((int)(214.0F + (1.0F - progressStart) * 24.0F), 0, 255);
+        int gEnd = Mth.clamp((int)(214.0F + (1.0F - progressEnd) * 24.0F), 0, 255);
+        int bStart = Mth.clamp((int)(128.0F + (1.0F - progressStart) * 42.0F), 0, 255);
+        int bEnd = Mth.clamp((int)(128.0F + (1.0F - progressEnd) * 42.0F), 0, 255);
         addRibbonQuadTint(consumer, matrix, start, end, sideStart, sideEnd, widthStart, widthEnd, 255, gStart, bStart, alphaStart, alphaEnd, gEnd, bEnd);
     }
 
