@@ -7,8 +7,6 @@
   "message.gracebound.cross_dimension": "Grace cannot guide you across dimensions",
   "message.gracebound.no_death_location": "No death grace is known",
   "gracebound.configuration.title": "%s Configuration",
-  "gracebound.configuration.guidanceMode": "Default Guidance Mode",
-  "gracebound.configuration.guidanceMode.tooltip": "Default guidance behavior used when you join a world.",
   "gracebound.configuration.enableFade": "Enable Fading",
   "gracebound.configuration.enableFade.tooltip": "Whether guidance trails fade in and out.",
   "gracebound.configuration.fadeInTicks": "Fade In Ticks",
@@ -29,14 +27,10 @@
   "gracebound.configuration.maxBeamDistance.tooltip": "Maximum visual guidance distance in blocks.",
   "gracebound.configuration.showMessages": "Show Guidance Messages",
   "gracebound.configuration.showMessages.tooltip": "Whether Gracebound shows client-side guidance messages.",
-  "gracebound.configuration.showGuidanceForOthers": "Show Guidance For Others",
-  "gracebound.configuration.showGuidanceForOthers.tooltip": "Whether guidance trails are rendered for other players.",
   "gracebound.configuration.showLodestoneGuidance": "Show Lodestone Guidance",
   "gracebound.configuration.showLodestoneGuidance.tooltip": "Whether lodestone compass guidance is rendered.",
   "gracebound.configuration.showRecoveryCompassGuidance": "Show Recovery Compass Guidance",
   "gracebound.configuration.showRecoveryCompassGuidance.tooltip": "Whether recovery compass guidance is rendered.",
   "gracebound.configuration.showRegularCompassGuidance": "Show Regular Compass Guidance",
-  "gracebound.configuration.showRegularCompassGuidance.tooltip": "Whether regular compass guidance to spawn is rendered.",
-  "gracebound.configuration.showDeathGuidanceWithoutRecoveryCompass": "Show Death Guidance Without Recovery Compass",
-  "gracebound.configuration.showDeathGuidanceWithoutRecoveryCompass.tooltip": "Whether death guidance can appear even when no recovery compass is held."
+  "gracebound.configuration.showRegularCompassGuidance.tooltip": "Whether regular compass guidance to spawn is rendered."
 }

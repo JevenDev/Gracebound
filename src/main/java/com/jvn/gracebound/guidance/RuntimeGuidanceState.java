@@ -55,8 +55,8 @@ public final class RuntimeGuidanceState {
         return deathGuidanceTicksRemaining;
     }
 
-    public static void resetToConfigMode() {
-        mode = GraceboundConfig.guidanceMode;
+    public static void resetToDefaultMode(GuidanceMode defaultMode) {
+        mode = defaultMode;
     }
 
     private static void activateDeathGuidance(GlobalPos deathLocation) {

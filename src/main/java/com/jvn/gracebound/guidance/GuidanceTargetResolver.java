@@ -1,6 +1,7 @@
 package com.jvn.gracebound.guidance;
 
 import com.jvn.gracebound.config.GraceboundConfig;
+import com.jvn.gracebound.world.GraceboundGameRules;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
@@ -36,7 +37,7 @@ public final class GuidanceTargetResolver {
         }
 
         if (!includeDeathFallback
-                || !GraceboundConfig.showDeathGuidanceWithoutRecoveryCompass) {
+                || !GraceboundGameRules.showDeathGuidanceWithoutRecoveryCompassEnabled(player.level())) {
             return TargetResolution.none();
         }
 
