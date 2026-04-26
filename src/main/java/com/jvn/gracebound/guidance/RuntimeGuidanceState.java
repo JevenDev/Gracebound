@@ -61,8 +61,6 @@ public final class RuntimeGuidanceState {
 
     private static void activateDeathGuidance(GlobalPos deathLocation) {
         activeDeathGuidanceTarget = Optional.of(deathLocation);
-        deathGuidanceTicksRemaining = GraceboundConfig.fadeInTicks
-                + GraceboundConfig.visibleDurationTicks
-                + GraceboundConfig.fadeOutTicks;
+        deathGuidanceTicksRemaining = GraceboundConfig.visibleDurationTicks;
     }
 }

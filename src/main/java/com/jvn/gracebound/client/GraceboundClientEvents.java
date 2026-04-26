@@ -62,6 +62,7 @@ public final class GraceboundClientEvents {
                 if (resolution.crossDimensionTarget().isPresent()) {
                     GraceboundClientMessages.crossDimension();
                 }
+                GraceboundGuidanceVisuals.tick(minecraft.player, resolution.target());
             }
         }
     }
