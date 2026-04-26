@@ -46,11 +46,24 @@ final class XaeroCompatIntegration {
     private static final int BOX_TOP = -ANCHOR_Y;
     private static final int BOX_BOTTOM = BOX_TOP + TEXTURE_HEIGHT;
     private static final double TEXTURE_FORWARD_DEGREES = 135.0D; // Art forward points toward bottom-left.
-    private static final float MAX_ZOOM_OUT_SCALE = 3.0F;
+    private static final double DESTINATION_RADIUS_BLOCKS = 3.0D;
+    private static final double DESTINATION_FADE_BAND_BLOCKS = 2.0D;
+    private static final float MIN_DESTINATION_ALPHA = 0.0F;
+    private static final float GUIDANCE_TRANSITION_SPEED = 3.5F;
+    private static final float MIN_RENDER_ALPHA = 0.01F;
+
+    private static final float MAX_WORLD_MAP_ZOOM_OUT_SCALE = 3.0F;
+    private static final float MINIMAP_BASE_SCALE_FACTOR = 0.30F;
+    private static final float MINIMAP_MIN_SCALE = 0.14F;
+    private static final float MINIMAP_FALLBACK_MAX_SCALE = 0.60F;
+    private static final float MINIMAP_MAX_HALF_VIEW_FRACTION = 0.70F;
 
     private static final GuidanceElementRenderer RENDERER = new GuidanceElementRenderer();
 
     private static GuidanceMarker activeMarker;
+    private static GuidanceMarker pendingMarker;
+    private static float markerVisibilityAlpha;
+    private static long lastTransitionTickNanos;
     private static boolean minimapRendererRegistered;
     private static boolean worldMapRendererRegistered;
 
@@ -59,11 +72,14 @@ final class XaeroCompatIntegration {
 
     static void clientTick(Player player, Optional<GuidanceTarget> target) {
         tryRegisterRenderers();
-        activeMarker = resolveMarker(player, target).orElse(null);
+        updateTransitionState(resolveMarker(player, target).orElse(null));
     }
 
     static void clear() {
         activeMarker = null;
+        pendingMarker = null;
+        markerVisibilityAlpha = 0.0F;
+        lastTransitionTickNanos = 0L;
     }
 
     private static void tryRegisterRenderers() {
@@ -134,30 +150,103 @@ final class XaeroCompatIntegration {
 
         Vec3 playerPos = player.position();
         Vec3 targetPos = Vec3.atCenterOf(guidanceTarget.pos().pos());
+        double dx = targetPos.x - playerPos.x;
+        double dz = targetPos.z - playerPos.z;
+        double horizontalDistanceToTarget = Math.sqrt(dx * dx + dz * dz);
+        long guidanceKey = guidanceTarget.pos().pos().asLong();
         return Optional.of(new GuidanceMarker(
                 playerPos.x,
                 playerPos.y,
                 playerPos.z,
-                computeRotationDegrees(playerPos, targetPos)
+                computeWorldDirectionDegrees(playerPos, targetPos),
+                horizontalDistanceToTarget,
+                guidanceKey
         ));
     }
 
-    private static float computeRotationDegrees(Vec3 from, Vec3 to) {
+    private static void updateTransitionState(GuidanceMarker resolvedMarker) {
+        float deltaSeconds = getTransitionDeltaSeconds();
+        float alphaStep = GUIDANCE_TRANSITION_SPEED * deltaSeconds;
+
+        if (resolvedMarker == null) {
+            pendingMarker = null;
+            markerVisibilityAlpha = approach(markerVisibilityAlpha, 0.0F, alphaStep);
+            if (markerVisibilityAlpha <= MIN_RENDER_ALPHA) {
+                markerVisibilityAlpha = 0.0F;
+                activeMarker = null;
+            }
+            return;
+        }
+
+        if (activeMarker == null) {
+            activeMarker = resolvedMarker;
+            pendingMarker = null;
+            markerVisibilityAlpha = approach(markerVisibilityAlpha, 1.0F, alphaStep);
+            return;
+        }
+
+        if (activeMarker.guidanceKey() != resolvedMarker.guidanceKey()) {
+            pendingMarker = resolvedMarker;
+            markerVisibilityAlpha = approach(markerVisibilityAlpha, 0.0F, alphaStep);
+            if (markerVisibilityAlpha <= MIN_RENDER_ALPHA) {
+                markerVisibilityAlpha = 0.0F;
+                activeMarker = pendingMarker;
+                pendingMarker = null;
+            }
+            return;
+        }
+
+        activeMarker = resolvedMarker;
+        pendingMarker = null;
+        markerVisibilityAlpha = approach(markerVisibilityAlpha, 1.0F, alphaStep);
+    }
+
+    private static float getTransitionDeltaSeconds() {
+        long now = System.nanoTime();
+        if (lastTransitionTickNanos == 0L) {
+            lastTransitionTickNanos = now;
+            return 0.05F;
+        }
+
+        long deltaNanos = now - lastTransitionTickNanos;
+        lastTransitionTickNanos = now;
+        if (deltaNanos <= 0L) {
+            return 0.0F;
+        }
+
+        float deltaSeconds = deltaNanos / 1_000_000_000.0F;
+        return Mth.clamp(deltaSeconds, 0.0F, 0.25F);
+    }
+
+    private static float approach(float current, float target, float maxStep) {
+        if (current < target) {
+            return Math.min(current + maxStep, target);
+        }
+        return Math.max(current - maxStep, target);
+    }
+
+    private static float computeWorldDirectionDegrees(Vec3 from, Vec3 to) {
         double dx = to.x - from.x;
         double dz = to.z - from.z;
         if (dx * dx + dz * dz < 1.0E-6D) {
             return 0.0F;
         }
 
-        double desiredDegrees = Math.toDegrees(Math.atan2(dz, dx));
-        return Mth.wrapDegrees((float) (desiredDegrees - TEXTURE_FORWARD_DEGREES));
+        return Mth.wrapDegrees((float) Math.toDegrees(Math.atan2(dz, dx)));
     }
 
     private static boolean hasActiveMarker() {
-        return activeMarker != null;
+        return activeMarker != null && markerVisibilityAlpha > MIN_RENDER_ALPHA;
     }
 
-    private record GuidanceMarker(double x, double y, double z, float rotationDegrees) {
+    private record GuidanceMarker(
+            double x,
+            double y,
+            double z,
+            float worldDirectionDegrees,
+            double horizontalDistanceToTarget,
+            long guidanceKey
+    ) {
     }
 
     private static final class GuidanceElementProvider extends MinimapElementRenderProvider<GuidanceMarker, Void> {
@@ -170,7 +259,7 @@ final class XaeroCompatIntegration {
 
         @Override
         public boolean hasNext(int location, Void context) {
-            return !consumed && activeMarker != null;
+            return !consumed && hasActiveMarker();
         }
 
         @Override
@@ -285,6 +374,13 @@ final class XaeroCompatIntegration {
         private static Field guiMapScaleField;
         private static boolean guiMapScaleLookupAttempted;
 
+        private static Class<?> overMapHandlerClass;
+        private static Field overMapPsField;
+        private static Field overMapPcField;
+        private static Field overMapHalfViewWField;
+        private static Field overMapHalfViewHField;
+        private static boolean overMapStateLookupAttempted;
+
         private GuidanceElementRenderer() {
             super(new GuidanceElementReader(), new GuidanceElementProvider(), null);
         }
@@ -318,21 +414,23 @@ final class XaeroCompatIntegration {
             }
 
             var poseStack = guiGraphics.pose();
-            float visualScale = optionalScale;
-            if (isWorldMapLocation(location)) {
-                visualScale = capWorldMapZoomOutScale(optionalScale);
+            float visualScale = computeVisualScale(location, optionalScale);
+            float rotationDegrees = computeRotationDegrees(location, element);
+            float alpha = computeAlpha(element);
+            if (alpha <= MIN_RENDER_ALPHA) {
+                poseStack.popPose();
+                return true;
             }
 
             poseStack.pushPose();
             poseStack.translate(0.0D, 0.0D, depth);
             poseStack.scale(visualScale, visualScale, 1.0F);
-            poseStack.mulPose(Axis.ZP.rotationDegrees(element.rotationDegrees()));
+            poseStack.mulPose(Axis.ZP.rotationDegrees(rotationDegrees));
 
-            RenderSystem.setShaderTexture(0, GUIDANCE_TEXTURE);
-            RenderSystem.texParameter(GL11C.GL_TEXTURE_2D, GL11C.GL_TEXTURE_MIN_FILTER, GL11C.GL_LINEAR);
-            RenderSystem.texParameter(GL11C.GL_TEXTURE_2D, GL11C.GL_TEXTURE_MAG_FILTER, GL11C.GL_LINEAR);
+            applyTextureFiltering(location);
             RenderSystem.enableBlend();
             RenderSystem.defaultBlendFunc();
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
             guiGraphics.blit(
                     GUIDANCE_TEXTURE,
                     BOX_LEFT,
@@ -344,15 +442,108 @@ final class XaeroCompatIntegration {
                     TEXTURE_WIDTH,
                     TEXTURE_HEIGHT
             );
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
             RenderSystem.disableBlend();
 
             poseStack.popPose();
             return true;
         }
 
+        private static float computeAlpha(GuidanceMarker element) {
+            float destinationAlpha = computeDestinationAlpha((float) element.horizontalDistanceToTarget());
+            return Mth.clamp(markerVisibilityAlpha * destinationAlpha, 0.0F, 1.0F);
+        }
+
+        private static float computeDestinationAlpha(float distanceToTarget) {
+            float destinationRadius = (float) DESTINATION_RADIUS_BLOCKS;
+            float fadeBand = (float) DESTINATION_FADE_BAND_BLOCKS;
+            float fadeEndDistance = destinationRadius + fadeBand;
+            if (distanceToTarget >= fadeEndDistance) {
+                return 1.0F;
+            }
+            if (distanceToTarget <= destinationRadius) {
+                return MIN_DESTINATION_ALPHA;
+            }
+
+            float t = (distanceToTarget - destinationRadius) / fadeBand;
+            float smooth = t * t * (3.0F - 2.0F * t);
+            return Mth.lerp(smooth, MIN_DESTINATION_ALPHA, 1.0F);
+        }
+
+        private static float computeVisualScale(int location, float optionalScale) {
+            if (isWorldMapLocation(location)) {
+                return capWorldMapZoomOutScale(optionalScale);
+            }
+            if (isMinimapLocation(location)) {
+                return capMinimapScale(optionalScale);
+            }
+            return optionalScale;
+        }
+
+        private static float capMinimapScale(float optionalScale) {
+            float scaled = optionalScale * MINIMAP_BASE_SCALE_FACTOR;
+            float maxScale = MINIMAP_FALLBACK_MAX_SCALE;
+
+            MinimapOverMapState minimapState = readMinimapOverMapState();
+            if (minimapState != null) {
+                int minHalfView = Math.min(minimapState.halfViewW(), minimapState.halfViewH());
+                if (minHalfView > 0) {
+                    float boundedScale = (float) ((minHalfView * MINIMAP_MAX_HALF_VIEW_FRACTION)
+                            / Math.max(TEXTURE_WIDTH, TEXTURE_HEIGHT));
+                    if (Float.isFinite(boundedScale) && boundedScale > 0.0F) {
+                        maxScale = boundedScale;
+                    }
+                }
+            }
+
+            maxScale = Math.max(maxScale, MINIMAP_MIN_SCALE);
+            return Mth.clamp(scaled, MINIMAP_MIN_SCALE, maxScale);
+        }
+
+        private static boolean isMinimapLocation(int location) {
+            return location == MinimapElementRenderLocation.OVER_MINIMAP
+                    || location == MinimapElementRenderLocation.IN_MINIMAP;
+        }
+
         private static boolean isWorldMapLocation(int location) {
             return location == MinimapElementRenderLocation.WORLD_MAP
                     || location == MinimapElementRenderLocation.WORLD_MAP_MENU;
+        }
+
+        private static float computeRotationDegrees(int location, GuidanceMarker element) {
+            if (!isMinimapLocation(location)) {
+                return worldRotationToTextureRotation(element.worldDirectionDegrees());
+            }
+
+            MinimapOverMapState minimapState = readMinimapOverMapState();
+            if (minimapState == null) {
+                return worldRotationToTextureRotation(element.worldDirectionDegrees());
+            }
+
+            double worldRadians = Math.toRadians(element.worldDirectionDegrees());
+            double dx = Math.cos(worldRadians);
+            double dz = Math.sin(worldRadians);
+
+            // Match Xaero's OVER_MINIMAP translation basis so our arrow points where an offset marker would render.
+            double screenX = minimapState.ps() * dx - minimapState.pc() * dz;
+            double screenY = minimapState.pc() * dx + minimapState.ps() * dz;
+            if (screenX * screenX + screenY * screenY < 1.0E-8D) {
+                return worldRotationToTextureRotation(element.worldDirectionDegrees());
+            }
+
+            float minimapDirectionDegrees = (float) Math.toDegrees(Math.atan2(screenY, screenX));
+            return worldRotationToTextureRotation(minimapDirectionDegrees);
+        }
+
+        private static float worldRotationToTextureRotation(float directionDegrees) {
+            return Mth.wrapDegrees((float) (directionDegrees - TEXTURE_FORWARD_DEGREES));
+        }
+
+        private static void applyTextureFiltering(int location) {
+            RenderSystem.setShaderTexture(0, GUIDANCE_TEXTURE);
+            int filter = isMinimapLocation(location) ? GL11C.GL_NEAREST : GL11C.GL_LINEAR;
+            RenderSystem.texParameter(GL11C.GL_TEXTURE_2D, GL11C.GL_TEXTURE_MIN_FILTER, filter);
+            RenderSystem.texParameter(GL11C.GL_TEXTURE_2D, GL11C.GL_TEXTURE_MAG_FILTER, filter);
         }
 
         private static float capWorldMapZoomOutScale(float optionalScale) {
@@ -361,8 +552,81 @@ final class XaeroCompatIntegration {
                 return optionalScale;
             }
 
-            float cappedLocalScale = (float) Math.min(optionalScale, MAX_ZOOM_OUT_SCALE * mapScale);
+            float cappedLocalScale = (float) Math.min(optionalScale, MAX_WORLD_MAP_ZOOM_OUT_SCALE * mapScale);
             return Math.max(0.0F, cappedLocalScale);
+        }
+
+        private static MinimapOverMapState readMinimapOverMapState() {
+            HudMod hudMod = HudMod.INSTANCE;
+            if (hudMod == null) {
+                return null;
+            }
+
+            Minimap minimap = hudMod.getMinimap();
+            if (minimap == null) {
+                return null;
+            }
+
+            Object overMapHandler = minimap.getOverMapRendererHandler();
+            if (overMapHandler == null || !prepareOverMapStateFields(overMapHandler.getClass())) {
+                return null;
+            }
+
+            try {
+                return new MinimapOverMapState(
+                        overMapPsField.getDouble(overMapHandler),
+                        overMapPcField.getDouble(overMapHandler),
+                        overMapHalfViewWField.getInt(overMapHandler),
+                        overMapHalfViewHField.getInt(overMapHandler)
+                );
+            } catch (IllegalAccessException exception) {
+                return null;
+            }
+        }
+
+        private static boolean prepareOverMapStateFields(Class<?> handlerClass) {
+            if (handlerClass.equals(overMapHandlerClass)
+                    && overMapPsField != null
+                    && overMapPcField != null
+                    && overMapHalfViewWField != null
+                    && overMapHalfViewHField != null) {
+                return true;
+            }
+            if (handlerClass.equals(overMapHandlerClass) && overMapStateLookupAttempted) {
+                return false;
+            }
+
+            overMapHandlerClass = handlerClass;
+            overMapStateLookupAttempted = true;
+            try {
+                overMapPsField = findFieldRecursive(handlerClass, "ps");
+                overMapPcField = findFieldRecursive(handlerClass, "pc");
+                overMapHalfViewWField = findFieldRecursive(handlerClass, "halfViewW");
+                overMapHalfViewHField = findFieldRecursive(handlerClass, "halfViewH");
+                return true;
+            } catch (ReflectiveOperationException exception) {
+                Gracebound.LOGGER.debug("Gracebound Xaero compat could not access minimap over-map render state.", exception);
+                overMapPsField = null;
+                overMapPcField = null;
+                overMapHalfViewWField = null;
+                overMapHalfViewHField = null;
+                return false;
+            }
+        }
+
+        private static Field findFieldRecursive(Class<?> startClass, String fieldName)
+                throws ReflectiveOperationException {
+            Class<?> cursor = startClass;
+            while (cursor != null) {
+                try {
+                    Field field = cursor.getDeclaredField(fieldName);
+                    field.setAccessible(true);
+                    return field;
+                } catch (NoSuchFieldException ignored) {
+                    cursor = cursor.getSuperclass();
+                }
+            }
+            throw new NoSuchFieldException(fieldName);
         }
 
         private static double readCurrentGuiMapScale() {
@@ -450,6 +714,9 @@ final class XaeroCompatIntegration {
         @Override
         public int getOrder() {
             return 220;
+        }
+
+        private record MinimapOverMapState(double ps, double pc, int halfViewW, int halfViewH) {
         }
     }
 }
