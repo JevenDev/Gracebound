@@ -34,9 +34,21 @@ public final class GraceboundConfig {
             .comment("Approximate particles per block along the short guidance stream.")
             .defineInRange("beamDensity", 0.85D, 0.1D, 4.0D);
 
+    private static final ModConfigSpec.DoubleValue BEAM_ORIGIN_OFFSET = BUILDER
+            .comment("Forward offset from your eyes where the stream is anchored.")
+            .defineInRange("beamOriginOffset", 0.4D, 0.0D, 2.0D);
+
+    private static final ModConfigSpec.DoubleValue BEAM_START_DISTANCE = BUILDER
+            .comment("Extra distance from the anchor before particles begin rendering.")
+            .defineInRange("beamStartDistance", 0.25D, 0.0D, 3.0D);
+
+    private static final ModConfigSpec.DoubleValue BEAM_VERTICAL_OFFSET = BUILDER
+            .comment("Vertical offset from eye level where the stream originates. Negative values lower it toward torso height.")
+            .defineInRange("beamVerticalOffset", -0.55D, -2.0D, 1.0D);
+
     private static final ModConfigSpec.DoubleValue MAX_BEAM_DISTANCE = BUILDER
             .comment("Maximum visual length of the guidance stream in blocks.")
-            .defineInRange("maxBeamDistance", 32.0D, 4.0D, 96.0D);
+            .defineInRange("maxBeamDistance", 16.0D, 4.0D, 96.0D);
 
     private static final ModConfigSpec.BooleanValue SHOW_MESSAGES = BUILDER
             .comment("Whether Gracebound shows small client-side guidance messages.")
@@ -50,7 +62,10 @@ public final class GraceboundConfig {
     public static int visibleDurationTicks = 120;
     public static int fadeOutTicks = 20;
     public static double beamDensity = 0.85D;
-    public static double maxBeamDistance = 32.0D;
+    public static double beamOriginOffset = 0.4D;
+    public static double beamStartDistance = 0.25D;
+    public static double beamVerticalOffset = -0.55D;
+    public static double maxBeamDistance = 16.0D;
     public static boolean showMessages = true;
 
     private GraceboundConfig() {
@@ -73,6 +88,9 @@ public final class GraceboundConfig {
         visibleDurationTicks = VISIBLE_DURATION_TICKS.get();
         fadeOutTicks = FADE_OUT_TICKS.get();
         beamDensity = BEAM_DENSITY.get();
+        beamOriginOffset = BEAM_ORIGIN_OFFSET.get();
+        beamStartDistance = BEAM_START_DISTANCE.get();
+        beamVerticalOffset = BEAM_VERTICAL_OFFSET.get();
         maxBeamDistance = MAX_BEAM_DISTANCE.get();
         showMessages = SHOW_MESSAGES.get();
         RuntimeGuidanceState.resetToConfigMode();
