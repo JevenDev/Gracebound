@@ -6,7 +6,11 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.RenderType;
@@ -37,91 +41,128 @@ public final class GraceboundGuidanceVisuals {
                     .createCompositeState(false)
     );
 
-    private static Optional<GuidanceTarget> lastTarget = Optional.empty();
-    private static Optional<GuidanceTarget> pendingTarget = Optional.empty();
-    private static float visibility;
-    private static boolean trailInitialized;
-    private static Vec3 delayedOrigin = Vec3.ZERO;
-    private static Vec3 delayedForward = new Vec3(0.0D, 0.0D, 1.0D);
+    private static final Map<UUID, TrailState> trailStates = new HashMap<>();
+
+    private static final class TrailState {
+        Optional<GuidanceTarget> lastTarget = Optional.empty();
+        Optional<GuidanceTarget> pendingTarget = Optional.empty();
+        float visibility;
+        boolean trailInitialized;
+        Vec3 delayedOrigin = Vec3.ZERO;
+        Vec3 delayedForward = new Vec3(0.0D, 0.0D, 1.0D);
+    }
 
     private GraceboundGuidanceVisuals() {
     }
 
     public static void tick(Player player, Optional<GuidanceTarget> target) {
-        if (lastTarget.isEmpty()) {
+        TrailState state = trailStates.computeIfAbsent(player.getUUID(), ignored -> new TrailState());
+        if (state.lastTarget.isEmpty()) {
             if (target.isPresent()) {
-                lastTarget = target;
-                pendingTarget = Optional.empty();
-                updateVisibility(true);
+                state.lastTarget = target;
+                state.pendingTarget = Optional.empty();
+                updateVisibility(state, true);
             } else {
-                updateVisibility(false);
-                if (visibility <= 0.01F) {
-                    trailInitialized = false;
+                updateVisibility(state, false);
+                if (state.visibility <= 0.01F) {
+                    state.trailInitialized = false;
                 }
             }
+            pruneInactiveState(player, state);
             return;
         }
 
-        if (target.isPresent() && target.get().equals(lastTarget.get())) {
-            pendingTarget = Optional.empty();
-            updateVisibility(true);
+        if (target.isPresent() && target.get().equals(state.lastTarget.get())) {
+            state.pendingTarget = Optional.empty();
+            updateVisibility(state, true);
             return;
         }
 
         if (target.isPresent()) {
-            pendingTarget = target;
+            state.pendingTarget = target;
         } else {
-            pendingTarget = Optional.empty();
+            state.pendingTarget = Optional.empty();
         }
 
         // Retract current stream before switching targets to avoid abrupt jumps.
-        updateVisibility(false);
-        if (visibility <= 0.01F) {
-            if (pendingTarget.isPresent()) {
-                lastTarget = pendingTarget;
-                pendingTarget = Optional.empty();
-                updateVisibility(true);
+        updateVisibility(state, false);
+        if (state.visibility <= 0.01F) {
+            if (state.pendingTarget.isPresent()) {
+                state.lastTarget = state.pendingTarget;
+                state.pendingTarget = Optional.empty();
+                updateVisibility(state, true);
             } else {
-                lastTarget = Optional.empty();
-                trailInitialized = false;
+                state.lastTarget = Optional.empty();
+                state.trailInitialized = false;
             }
         }
+        pruneInactiveState(player, state);
+    }
+
+    public static void clearOtherPlayers(Player localPlayer) {
+        UUID localId = localPlayer.getUUID();
+        trailStates.keySet().removeIf(playerId -> !playerId.equals(localId));
+    }
+
+    public static void clearAll() {
+        trailStates.clear();
     }
 
     public static void renderWorld(RenderLevelStageEvent event) {
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES || visibility <= 0.01F || lastTarget.isEmpty()) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES || trailStates.isEmpty()) {
             return;
         }
 
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null) {
+        if (minecraft.level == null) {
             return;
         }
 
-        GuidanceTarget target = lastTarget.get();
-        if (!target.pos().dimension().equals(minecraft.player.level().dimension())) {
-            return;
-        }
+        Iterator<Map.Entry<UUID, TrailState>> iterator = trailStates.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<UUID, TrailState> entry = iterator.next();
+            Player player = minecraft.level.getPlayerByUUID(entry.getKey());
+            TrailState state = entry.getValue();
+            if (player == null) {
+                iterator.remove();
+                continue;
+            }
 
-        renderGuidanceRibbon(event, minecraft.player, target, visibility);
+            if (state.visibility <= 0.01F || state.lastTarget.isEmpty()) {
+                continue;
+            }
+
+            GuidanceTarget target = state.lastTarget.get();
+            if (!target.pos().dimension().equals(player.level().dimension())) {
+                continue;
+            }
+
+            renderGuidanceRibbon(event, player, target, state);
+        }
     }
 
-    private static void updateVisibility(boolean hasTarget) {
+    private static void updateVisibility(TrailState state, boolean hasTarget) {
         if (!GraceboundConfig.enableFade) {
-            visibility = hasTarget ? 1.0F : 0.0F;
+            state.visibility = hasTarget ? 1.0F : 0.0F;
             return;
         }
 
         if (hasTarget) {
             int fadeIn = Math.max(1, GraceboundConfig.fadeInTicks);
-            visibility = Math.min(1.0F, visibility + 1.0F / fadeIn);
+            state.visibility = Math.min(1.0F, state.visibility + 1.0F / fadeIn);
         } else {
             int fadeOut = Math.max(1, GraceboundConfig.fadeOutTicks);
-            visibility = Math.max(0.0F, visibility - 1.0F / fadeOut);
+            state.visibility = Math.max(0.0F, state.visibility - 1.0F / fadeOut);
         }
     }
 
-    private static void renderGuidanceRibbon(RenderLevelStageEvent event, Player player, GuidanceTarget target, float intensity) {
+    private static void pruneInactiveState(Player player, TrailState state) {
+        if (state.visibility <= 0.01F && state.lastTarget.isEmpty() && state.pendingTarget.isEmpty()) {
+            trailStates.remove(player.getUUID());
+        }
+    }
+
+    private static void renderGuidanceRibbon(RenderLevelStageEvent event, Player player, GuidanceTarget target, TrailState state) {
         if (!(player.level() instanceof ClientLevel level)) {
             return;
         }
@@ -153,6 +194,7 @@ public final class GraceboundGuidanceVisuals {
         }
         Minecraft minecraft = Minecraft.getInstance();
         boolean firstPerson = minecraft.getCameraEntity() == player && minecraft.options.getCameraType().isFirstPerson();
+        float intensity = state.visibility;
         double startDistance = 0.0D;
         double streamLength = firstPerson
                 ? Math.max(0.35D, Math.min(distance, 1.8D))
@@ -171,19 +213,19 @@ public final class GraceboundGuidanceVisuals {
                     .add(0.0D, -0.25D, 0.0D);
         }
         Vec3 start = origin.add(forward.scale(startDistance));
-        if (!trailInitialized) {
-            delayedOrigin = start;
-            delayedForward = forward;
-            trailInitialized = true;
-        } else if (delayedOrigin.distanceToSqr(start) > 6.25D) {
-            delayedOrigin = start;
-            delayedForward = forward;
+        if (!state.trailInitialized) {
+            state.delayedOrigin = start;
+            state.delayedForward = forward;
+            state.trailInitialized = true;
+        } else if (state.delayedOrigin.distanceToSqr(start) > 6.25D) {
+            state.delayedOrigin = start;
+            state.delayedForward = forward;
         }
-        Vec3 previousDelayedOrigin = delayedOrigin;
-        Vec3 previousDelayedForward = delayedForward;
-        delayedOrigin = delayedOrigin.lerp(start, 0.08D);
-        Vec3 mixedForward = delayedForward.scale(0.92D).add(forward.scale(0.08D));
-        delayedForward = mixedForward.lengthSqr() > 0.0001D ? mixedForward.normalize() : forward;
+        Vec3 previousDelayedOrigin = state.delayedOrigin;
+        Vec3 previousDelayedForward = state.delayedForward;
+        state.delayedOrigin = state.delayedOrigin.lerp(start, 0.08D);
+        Vec3 mixedForward = state.delayedForward.scale(0.92D).add(forward.scale(0.08D));
+        state.delayedForward = mixedForward.lengthSqr() > 0.0001D ? mixedForward.normalize() : forward;
 
         Vec3 lagOffset = previousDelayedOrigin.subtract(start);
         Vec3 lagLateral = lagOffset.subtract(forward.scale(lagOffset.dot(forward)));

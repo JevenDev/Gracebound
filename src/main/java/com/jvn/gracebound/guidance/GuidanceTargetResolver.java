@@ -1,5 +1,6 @@
 package com.jvn.gracebound.guidance;
 
+import com.jvn.gracebound.config.GraceboundConfig;
 import java.util.Optional;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.core.component.DataComponents;
@@ -16,6 +17,14 @@ public final class GuidanceTargetResolver {
     }
 
     public static TargetResolution resolve(Player player) {
+        return resolve(player, true);
+    }
+
+    public static TargetResolution resolveHeldOnly(Player player) {
+        return resolve(player, false);
+    }
+
+    private static TargetResolution resolve(Player player, boolean includeDeathFallback) {
         if (RuntimeGuidanceState.mode() == GuidanceMode.OFF) {
             return TargetResolution.none();
         }
@@ -23,6 +32,11 @@ public final class GuidanceTargetResolver {
         TargetResolution heldTarget = resolveHeldCompasses(player);
         if (heldTarget.target().isPresent() || heldTarget.crossDimensionTarget().isPresent()) {
             return heldTarget;
+        }
+
+        if (!includeDeathFallback
+                || !GraceboundConfig.showDeathGuidanceWithoutRecoveryCompass) {
+            return TargetResolution.none();
         }
 
         return RuntimeGuidanceState.defaultDeathGuidanceTarget()
@@ -33,14 +47,22 @@ public final class GuidanceTargetResolver {
     }
 
     private static TargetResolution resolveHeldCompasses(Player player) {
-        TargetResolution lodestone = resolveHands(player, GuidanceTarget.Source.LODESTONE_COMPASS);
-        if (lodestone.target().isPresent() || lodestone.crossDimensionTarget().isPresent()) {
-            return lodestone;
+        if (GraceboundConfig.showLodestoneGuidance) {
+            TargetResolution lodestone = resolveHands(player, GuidanceTarget.Source.LODESTONE_COMPASS);
+            if (lodestone.target().isPresent() || lodestone.crossDimensionTarget().isPresent()) {
+                return lodestone;
+            }
         }
 
-        TargetResolution recovery = resolveHands(player, GuidanceTarget.Source.RECOVERY_COMPASS);
-        if (recovery.target().isPresent() || recovery.crossDimensionTarget().isPresent()) {
-            return recovery;
+        if (GraceboundConfig.showRecoveryCompassGuidance) {
+            TargetResolution recovery = resolveHands(player, GuidanceTarget.Source.RECOVERY_COMPASS);
+            if (recovery.target().isPresent() || recovery.crossDimensionTarget().isPresent()) {
+                return recovery;
+            }
+        }
+
+        if (!GraceboundConfig.showRegularCompassGuidance) {
+            return TargetResolution.none();
         }
 
         return resolveHands(player, GuidanceTarget.Source.REGULAR_COMPASS);

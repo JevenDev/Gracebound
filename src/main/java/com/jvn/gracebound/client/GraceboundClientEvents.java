@@ -9,12 +9,14 @@ import com.jvn.gracebound.guidance.TargetResolution;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraft.world.entity.player.Player;
 import org.lwjgl.glfw.GLFW;
 
 public final class GraceboundClientEvents {
@@ -64,6 +66,22 @@ public final class GraceboundClientEvents {
                     GraceboundClientMessages.crossDimension();
                 }
                 GraceboundGuidanceVisuals.tick(minecraft.player, resolution.target());
+
+                ClientLevel level = minecraft.level;
+                if (level != null && GraceboundConfig.showGuidanceForOthers) {
+                    for (Player player : level.players()) {
+                        if (player == minecraft.player) {
+                            continue;
+                        }
+
+                        TargetResolution otherResolution = GuidanceTargetResolver.resolveHeldOnly(player);
+                        GraceboundGuidanceVisuals.tick(player, otherResolution.target());
+                    }
+                } else {
+                    GraceboundGuidanceVisuals.clearOtherPlayers(minecraft.player);
+                }
+            } else {
+                GraceboundGuidanceVisuals.clearAll();
             }
         }
 

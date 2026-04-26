@@ -1,6 +1,5 @@
 package com.jvn.gracebound.config;
 
-import com.jvn.gracebound.Gracebound;
 import com.jvn.gracebound.guidance.GuidanceMode;
 import com.jvn.gracebound.guidance.RuntimeGuidanceState;
 import net.neoforged.bus.api.IEventBus;
@@ -54,6 +53,26 @@ public final class GraceboundConfig {
             .comment("Whether Gracebound shows small client-side guidance messages.")
             .define("showMessages", true);
 
+    private static final ModConfigSpec.BooleanValue SHOW_GUIDANCE_FOR_OTHERS = BUILDER
+            .comment("Whether guidance trails are rendered for other players.")
+            .define("showGuidanceForOthers", true);
+
+    private static final ModConfigSpec.BooleanValue SHOW_LODESTONE_GUIDANCE = BUILDER
+            .comment("Whether lodestone-compass guidance is rendered.")
+            .define("showLodestoneGuidance", true);
+
+    private static final ModConfigSpec.BooleanValue SHOW_RECOVERY_COMPASS_GUIDANCE = BUILDER
+            .comment("Whether recovery-compass guidance is rendered.")
+            .define("showRecoveryCompassGuidance", true);
+
+    private static final ModConfigSpec.BooleanValue SHOW_REGULAR_COMPASS_GUIDANCE = BUILDER
+            .comment("Whether regular-compass guidance (spawn guidance) is rendered.")
+            .define("showRegularCompassGuidance", true);
+
+    private static final ModConfigSpec.BooleanValue SHOW_DEATH_GUIDANCE_WITHOUT_RECOVERY_COMPASS = BUILDER
+            .comment("Whether death-location guidance can appear without holding a recovery compass.")
+            .define("showDeathGuidanceWithoutRecoveryCompass", true);
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     public static GuidanceMode guidanceMode = GuidanceMode.ON_DEATH;
@@ -67,6 +86,11 @@ public final class GraceboundConfig {
     public static double beamVerticalOffset = -0.92D;
     public static double maxBeamDistance = 6.0D;
     public static boolean showMessages = true;
+    public static boolean showGuidanceForOthers = true;
+    public static boolean showLodestoneGuidance = true;
+    public static boolean showRecoveryCompassGuidance = true;
+    public static boolean showRegularCompassGuidance = true;
+    public static boolean showDeathGuidanceWithoutRecoveryCompass = true;
 
     private GraceboundConfig() {
     }
@@ -93,6 +117,11 @@ public final class GraceboundConfig {
         beamVerticalOffset = BEAM_VERTICAL_OFFSET.get();
         maxBeamDistance = MAX_BEAM_DISTANCE.get();
         showMessages = SHOW_MESSAGES.get();
+        showGuidanceForOthers = SHOW_GUIDANCE_FOR_OTHERS.get();
+        showLodestoneGuidance = SHOW_LODESTONE_GUIDANCE.get();
+        showRecoveryCompassGuidance = SHOW_RECOVERY_COMPASS_GUIDANCE.get();
+        showRegularCompassGuidance = SHOW_REGULAR_COMPASS_GUIDANCE.get();
+        showDeathGuidanceWithoutRecoveryCompass = SHOW_DEATH_GUIDANCE_WITHOUT_RECOVERY_COMPASS.get();
         RuntimeGuidanceState.resetToConfigMode();
     }
 }
