@@ -16,38 +16,49 @@ public final class GuidanceTargetResolver {
     }
 
     public static TargetResolution resolve(Player player) {
+        if (RuntimeGuidanceState.mode() == GuidanceMode.OFF) {
+            return TargetResolution.none();
+        }
+
         TargetResolution heldTarget = resolveHeldCompasses(player);
         if (heldTarget.target().isPresent() || heldTarget.crossDimensionTarget().isPresent()) {
             return heldTarget;
         }
 
-        if (RuntimeGuidanceState.mode() != GuidanceMode.OFF) {
-            return RuntimeGuidanceState.defaultDeathGuidanceTarget()
-                    .map(pos -> inSameDimension(player, pos)
-                            ? TargetResolution.found(new GuidanceTarget(pos, GuidanceTarget.Source.DEATH_GUIDANCE))
-                            : TargetResolution.crossDimension(pos))
-                    .orElseGet(TargetResolution::none);
-        }
-
-        return TargetResolution.none();
+        return RuntimeGuidanceState.defaultDeathGuidanceTarget()
+                .map(pos -> inSameDimension(player, pos)
+                        ? TargetResolution.found(new GuidanceTarget(pos, GuidanceTarget.Source.DEATH_GUIDANCE))
+                        : TargetResolution.crossDimension(pos))
+                .orElseGet(TargetResolution::none);
     }
 
     private static TargetResolution resolveHeldCompasses(Player player) {
-        TargetResolution mainHand = resolveCompassStack(player, player.getItemInHand(InteractionHand.MAIN_HAND));
-        if (mainHand.target().isPresent() || mainHand.crossDimensionTarget().isPresent()) {
-            return mainHand;
-        }
-
-        return resolveCompassStack(player, player.getItemInHand(InteractionHand.OFF_HAND));
-    }
-
-    private static TargetResolution resolveCompassStack(Player player, ItemStack stack) {
-        TargetResolution lodestone = resolveLodestoneCompass(player, stack);
+        TargetResolution lodestone = resolveHands(player, GuidanceTarget.Source.LODESTONE_COMPASS);
         if (lodestone.target().isPresent() || lodestone.crossDimensionTarget().isPresent()) {
             return lodestone;
         }
 
-        if (stack.is(Items.RECOVERY_COMPASS)) {
+        TargetResolution recovery = resolveHands(player, GuidanceTarget.Source.RECOVERY_COMPASS);
+        if (recovery.target().isPresent() || recovery.crossDimensionTarget().isPresent()) {
+            return recovery;
+        }
+
+        return resolveHands(player, GuidanceTarget.Source.REGULAR_COMPASS);
+    }
+
+    private static TargetResolution resolveHands(Player player, GuidanceTarget.Source source) {
+        TargetResolution mainHand = resolveCompassStack(player, player.getItemInHand(InteractionHand.MAIN_HAND), source);
+        return mainHand.target().isPresent() || mainHand.crossDimensionTarget().isPresent()
+                ? mainHand
+                : resolveCompassStack(player, player.getItemInHand(InteractionHand.OFF_HAND), source);
+    }
+
+    private static TargetResolution resolveCompassStack(Player player, ItemStack stack, GuidanceTarget.Source source) {
+        if (source == GuidanceTarget.Source.LODESTONE_COMPASS) {
+            return resolveLodestoneCompass(player, stack);
+        }
+
+        if (source == GuidanceTarget.Source.RECOVERY_COMPASS && stack.is(Items.RECOVERY_COMPASS)) {
             return player.getLastDeathLocation()
                     .map(pos -> inSameDimension(player, pos)
                             ? TargetResolution.found(new GuidanceTarget(pos, GuidanceTarget.Source.RECOVERY_COMPASS))
@@ -55,7 +66,7 @@ public final class GuidanceTargetResolver {
                     .orElseGet(TargetResolution::none);
         }
 
-        if (stack.is(Items.COMPASS)) {
+        if (source == GuidanceTarget.Source.REGULAR_COMPASS && stack.is(Items.COMPASS) && !stack.has(DataComponents.LODESTONE_TRACKER)) {
             GlobalPos spawn = CompassItem.getSpawnPosition(player.level());
             if (spawn != null) {
                 return inSameDimension(player, spawn)
