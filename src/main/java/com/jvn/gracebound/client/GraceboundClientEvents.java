@@ -57,8 +57,8 @@ public final class GraceboundClientEvents {
             }
 
             if (minecraft.player != null) {
-                boolean allowDeathGuidance = RuntimeGuidanceState.mode() == GuidanceMode.ALWAYS;
-                TargetResolution resolution = GuidanceTargetResolver.resolve(minecraft.player, allowDeathGuidance);
+                RuntimeGuidanceState.clientTick(minecraft.player.getLastDeathLocation());
+                TargetResolution resolution = GuidanceTargetResolver.resolve(minecraft.player);
                 if (resolution.crossDimensionTarget().isPresent()) {
                     GraceboundClientMessages.crossDimension();
                 }

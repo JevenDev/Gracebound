@@ -15,14 +15,14 @@ public final class GuidanceTargetResolver {
     private GuidanceTargetResolver() {
     }
 
-    public static TargetResolution resolve(Player player, boolean allowDeathGuidance) {
+    public static TargetResolution resolve(Player player) {
         TargetResolution heldTarget = resolveHeldCompasses(player);
         if (heldTarget.target().isPresent() || heldTarget.crossDimensionTarget().isPresent()) {
             return heldTarget;
         }
 
-        if (allowDeathGuidance && RuntimeGuidanceState.mode() != GuidanceMode.OFF) {
-            return player.getLastDeathLocation()
+        if (RuntimeGuidanceState.mode() != GuidanceMode.OFF) {
+            return RuntimeGuidanceState.defaultDeathGuidanceTarget()
                     .map(pos -> inSameDimension(player, pos)
                             ? TargetResolution.found(new GuidanceTarget(pos, GuidanceTarget.Source.DEATH_GUIDANCE))
                             : TargetResolution.crossDimension(pos))
