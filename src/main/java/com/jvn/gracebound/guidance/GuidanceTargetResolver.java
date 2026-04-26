@@ -2,6 +2,7 @@ package com.jvn.gracebound.guidance;
 
 import com.jvn.gracebound.config.GraceboundConfig;
 import java.util.Optional;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.InteractionHand;
@@ -42,7 +43,7 @@ public final class GuidanceTargetResolver {
         return RuntimeGuidanceState.defaultDeathGuidanceTarget()
                 .map(pos -> inSameDimension(player, pos)
                         ? TargetResolution.found(new GuidanceTarget(pos, GuidanceTarget.Source.DEATH_GUIDANCE))
-                        : TargetResolution.crossDimension(pos))
+                        : TargetResolution.crossDimension(pos, GuidanceTarget.Source.DEATH_GUIDANCE))
                 .orElseGet(TargetResolution::none);
     }
 
@@ -84,7 +85,7 @@ public final class GuidanceTargetResolver {
             return player.getLastDeathLocation()
                     .map(pos -> inSameDimension(player, pos)
                             ? TargetResolution.found(new GuidanceTarget(pos, GuidanceTarget.Source.RECOVERY_COMPASS))
-                            : TargetResolution.crossDimension(pos))
+                            : TargetResolution.crossDimension(pos, GuidanceTarget.Source.RECOVERY_COMPASS))
                     .orElseGet(TargetResolution::none);
         }
 
@@ -93,7 +94,16 @@ public final class GuidanceTargetResolver {
             if (spawn != null) {
                 return inSameDimension(player, spawn)
                         ? TargetResolution.found(new GuidanceTarget(spawn, GuidanceTarget.Source.REGULAR_COMPASS))
-                        : TargetResolution.crossDimension(spawn);
+                        : TargetResolution.crossDimension(spawn, GuidanceTarget.Source.REGULAR_COMPASS);
+            }
+
+            // Vanilla regular compasses only have a real spawn target in natural dimensions (Overworld).
+            // In Nether/End they still represent an "across-dimension" limitation to world spawn.
+            if (player.level().dimension() != Level.OVERWORLD) {
+                return TargetResolution.crossDimension(
+                        GlobalPos.of(Level.OVERWORLD, BlockPos.ZERO),
+                        GuidanceTarget.Source.REGULAR_COMPASS
+                );
             }
         }
 
@@ -109,7 +119,7 @@ public final class GuidanceTargetResolver {
         Optional<GlobalPos> target = tracker == null ? Optional.empty() : tracker.target();
         return target.map(pos -> inSameDimension(player, pos)
                         ? TargetResolution.found(new GuidanceTarget(pos, GuidanceTarget.Source.LODESTONE_COMPASS))
-                        : TargetResolution.crossDimension(pos))
+                        : TargetResolution.crossDimension(pos, GuidanceTarget.Source.LODESTONE_COMPASS))
                 .orElseGet(TargetResolution::none);
     }
 

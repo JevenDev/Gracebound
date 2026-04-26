@@ -62,9 +62,7 @@ public final class GraceboundClientEvents {
             if (minecraft.player != null) {
                 RuntimeGuidanceState.clientTick(minecraft.player.getLastDeathLocation());
                 TargetResolution resolution = GuidanceTargetResolver.resolve(minecraft.player);
-                if (resolution.crossDimensionTarget().isPresent()) {
-                    GraceboundClientMessages.crossDimension();
-                }
+                GraceboundClientMessages.updateCrossDimension(resolution);
                 GraceboundGuidanceVisuals.tick(minecraft.player, resolution.target());
 
                 ClientLevel level = minecraft.level;
@@ -81,6 +79,7 @@ public final class GraceboundClientEvents {
                     GraceboundGuidanceVisuals.clearOtherPlayers(minecraft.player);
                 }
             } else {
+                GraceboundClientMessages.clearState();
                 GraceboundGuidanceVisuals.clearAll();
             }
         }
