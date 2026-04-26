@@ -1,0 +1,9 @@
+{
+  "key.categories.gracebound": "Gracebound",
+  "key.gracebound.cycle_mode": "Cycle Guidance Mode",
+  "message.gracebound.mode.on_death": "Gracebound: On Death",
+  "message.gracebound.mode.always": "Gracebound: Always Active",
+  "message.gracebound.mode.off": "Gracebound: Off",
+  "message.gracebound.cross_dimension": "Grace cannot guide you across dimensions",
+  "message.gracebound.no_death_location": "No death grace is known"
+}
