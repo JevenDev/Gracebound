@@ -147,10 +147,16 @@ public final class GraceboundGuidanceVisuals {
             double blended = maxDistance + (rawDistance - maxDistance) * t;
             distance = Math.min(rawDistance, blended);
         }
+        double arcDistanceFactor = Mth.clamp(rawDistance / FULL_REACH_DISTANCE, 0.25D, 1.0D);
+        if (rawDistance > FULL_REACH_DISTANCE) {
+            arcDistanceFactor = 1.0D + Mth.clamp((rawDistance - FULL_REACH_DISTANCE) / 20.0D, 0.0D, 1.4D);
+        }
         Minecraft minecraft = Minecraft.getInstance();
         boolean firstPerson = minecraft.getCameraEntity() == player && minecraft.options.getCameraType().isFirstPerson();
         double startDistance = 0.0D;
-        double streamLength = Math.max(0.1D, distance);
+        double streamLength = firstPerson
+                ? Math.max(0.35D, Math.min(distance, 1.8D))
+                : Math.max(0.1D, distance);
         Vec3 origin = eye.add(0.0D, GraceboundConfig.beamVerticalOffset, 0.0D);
 
         Vec3 right = forward.cross(UP);
@@ -162,7 +168,7 @@ public final class GraceboundGuidanceVisuals {
         Vec3 lift = right.cross(forward).normalize();
         if (firstPerson) {
             origin = origin
-                    .add(0.0D, -0.35D, 0.0D);
+                    .add(0.0D, -0.25D, 0.0D);
         }
         Vec3 start = origin.add(forward.scale(startDistance));
         if (!trailInitialized) {
@@ -185,10 +191,11 @@ public final class GraceboundGuidanceVisuals {
         Vec3 turnLateral = forwardDelta.subtract(forward.scale(forwardDelta.dot(forward))).scale(streamLength * 0.35D);
         Vec3 bendVector = lagLateral.add(turnLateral);
 
-        int strandCount = Mth.clamp((int)Math.round(4.0D + GraceboundConfig.beamDensity * 4.0D), 4, 9);
-        int segments = Math.max(24, (int)Math.ceil(streamLength * (4.5D + GraceboundConfig.beamDensity * 3.0D)));
+        int strandCount = firstPerson ? 3 : Mth.clamp((int)Math.round(4.0D + GraceboundConfig.beamDensity * 4.0D), 4, 9);
+        int segments = firstPerson ? 16 : Math.max(24, (int)Math.ceil(streamLength * (4.5D + GraceboundConfig.beamDensity * 3.0D)));
         double time = level.getGameTime() + partialTick;
-        double bendStrength = Mth.clamp(player.getDeltaMovement().length() * 4.0D + lagLateral.length() * 2.8D, 0.0D, 1.0D);
+        double baseBendStrength = Mth.clamp(player.getDeltaMovement().length() * 4.0D + lagLateral.length() * 2.8D, 0.0D, 1.0D);
+        double bendStrength = firstPerson ? baseBendStrength * 0.75D : baseBendStrength;
 
         PoseStack poseStack = event.getPoseStack();
         Vec3 camera = event.getCamera().getPosition();
@@ -208,8 +215,8 @@ public final class GraceboundGuidanceVisuals {
                 float t0 = (float)i / segments;
                 float t1 = (float)(i + 1) / segments;
 
-                Vec3 c0 = ribbonPoint(start, forward, right, lift, bendVector, bendStrength, streamLength, time, t0, strandPhase, strandLateral);
-                Vec3 c1 = ribbonPoint(start, forward, right, lift, bendVector, bendStrength, streamLength, time, t1, strandPhase, strandLateral);
+                Vec3 c0 = ribbonPoint(start, forward, right, lift, bendVector, bendStrength, arcDistanceFactor, streamLength, time, t0, strandPhase, strandLateral, firstPerson);
+                Vec3 c1 = ribbonPoint(start, forward, right, lift, bendVector, bendStrength, arcDistanceFactor, streamLength, time, t1, strandPhase, strandLateral, firstPerson);
                 Vec3 side0 = ribbonSide(forward, right, c0, camera);
                 Vec3 side1 = ribbonSide(forward, right, c1, camera);
 
@@ -217,22 +224,33 @@ public final class GraceboundGuidanceVisuals {
                 float width1 = (0.008F + (1.0F - t1) * 0.018F) * intensity * (0.75F + centerBias * 0.35F);
                 float alpha0 = (0.14F + (1.0F - t0) * 0.28F) * intensity * strandAlphaScale;
                 float alpha1 = (0.14F + (1.0F - t1) * 0.28F) * intensity * strandAlphaScale;
-                float headFade0 = Mth.clamp(t0 / 0.14F, 0.0F, 1.0F);
-                float headFade1 = Mth.clamp(t1 / 0.14F, 0.0F, 1.0F);
+                float headFade0 = Mth.clamp(t0 / (firstPerson ? 0.08F : 0.14F), 0.0F, 1.0F);
+                float headFade1 = Mth.clamp(t1 / (firstPerson ? 0.08F : 0.14F), 0.0F, 1.0F);
                 headFade0 *= headFade0;
                 headFade1 *= headFade1;
-                float tailFade0 = Mth.clamp((1.0F - t0) / 0.3F, 0.0F, 1.0F);
-                float tailFade1 = Mth.clamp((1.0F - t1) / 0.3F, 0.0F, 1.0F);
+                float tailFade0 = Mth.clamp((1.0F - t0) / (firstPerson ? 0.22F : 0.3F), 0.0F, 1.0F);
+                float tailFade1 = Mth.clamp((1.0F - t1) / (firstPerson ? 0.22F : 0.3F), 0.0F, 1.0F);
                 tailFade0 *= tailFade0;
                 tailFade1 *= tailFade1;
                 alpha0 *= headFade0 * tailFade0;
                 alpha1 *= headFade1 * tailFade1;
                 width0 *= (0.8F + 0.2F * headFade0) * (0.7F + 0.3F * tailFade0);
                 width1 *= (0.8F + 0.2F * headFade1) * (0.7F + 0.3F * tailFade1);
+                if (firstPerson) {
+                    float fpTipFade0 = Mth.clamp((1.0F - t0) / 0.14F, 0.0F, 1.0F);
+                    float fpTipFade1 = Mth.clamp((1.0F - t1) / 0.14F, 0.0F, 1.0F);
+                    fpTipFade0 = fpTipFade0 * fpTipFade0 * fpTipFade0;
+                    fpTipFade1 = fpTipFade1 * fpTipFade1 * fpTipFade1;
+                    alpha0 *= fpTipFade0;
+                    alpha1 *= fpTipFade1;
+                    width0 *= (0.45F + 0.55F * fpTipFade0);
+                    width1 *= (0.45F + 0.55F * fpTipFade1);
+                }
 
                 addRibbonQuad(consumer, matrix, c0, c1, side0, side1, width0, width1, t0, t1, alpha0, alpha1);
 
                 if (centerBias > 0.92F) {
+                    float fpHighlight = firstPerson ? 0.6F : 1.0F;
                     addRibbonQuadTint(
                             consumer,
                             matrix,
@@ -245,15 +263,16 @@ public final class GraceboundGuidanceVisuals {
                             255,
                             248,
                             236,
-                            alpha0 * 1.12F,
-                            alpha1 * 1.12F
+                            alpha0 * 1.12F * fpHighlight,
+                            alpha1 * 1.12F * fpHighlight
                     );
                 }
 
                 if (centerBias > 0.62F) {
+                    float fpHighlight = firstPerson ? 0.6F : 1.0F;
                     float pulse = Mth.clamp((float)Math.sin((t0 + t1) * 37.0F + strandPhase * 1.9D) * 0.5F + 0.5F, 0.0F, 1.0F);
-                    float whiteAlpha0 = alpha0 * (0.18F + centerBias * 0.4F) * pulse;
-                    float whiteAlpha1 = alpha1 * (0.18F + centerBias * 0.4F) * pulse;
+                    float whiteAlpha0 = alpha0 * (0.18F + centerBias * 0.4F) * pulse * fpHighlight;
+                    float whiteAlpha1 = alpha1 * (0.18F + centerBias * 0.4F) * pulse * fpHighlight;
                     if (whiteAlpha0 > 0.004F || whiteAlpha1 > 0.004F) {
                         addRibbonQuadTint(
                                 consumer,
@@ -286,22 +305,26 @@ public final class GraceboundGuidanceVisuals {
             Vec3 lift,
             Vec3 bendVector,
             double bendStrength,
+            double arcDistanceFactor,
             double streamLength,
             double time,
             float progress,
             double strandPhase,
-            double strandLateral) {
+            double strandLateral,
+            boolean firstPerson) {
         double taper = 1.0D - progress;
         double mid = Math.sin(progress * Math.PI);
         double travel = progress * streamLength;
         Vec3 base = start.add(forward.scale(travel));
+        double fpCurveScale = firstPerson ? 0.65D : 1.0D;
+        double fpDisplaceScale = firstPerson ? 0.75D : 1.0D;
         double bendShape = mid * (1.0D - progress * 0.45D);
-        Vec3 curve = bendVector.scale(bendShape * (0.35D + bendStrength * 0.9D));
-        double rise = mid * (0.08D + streamLength * 0.055D);
-        double meander = Math.sin(time * 0.22D + progress * 9.5D + strandPhase) * 0.055D * taper;
-        double flutter = Math.cos(time * 0.31D + progress * 14.0D + strandPhase * 1.7D) * 0.018D * taper;
-        double strandSpread = strandLateral * (0.72D + taper * 0.28D);
-        double verticalBend = Math.sin(progress * Math.PI * 1.2D + strandPhase) * 0.015D;
+        Vec3 curve = bendVector.scale(bendShape * (0.35D + bendStrength * 0.9D) * fpCurveScale);
+        double rise = mid * (0.02D + streamLength * (0.015D + 0.05D * arcDistanceFactor) + arcDistanceFactor * 0.06D) * (firstPerson ? 0.6D : 1.0D);
+        double meander = Math.sin(time * 0.22D + progress * 9.5D + strandPhase) * 0.055D * taper * fpDisplaceScale;
+        double flutter = Math.cos(time * 0.31D + progress * 14.0D + strandPhase * 1.7D) * 0.018D * taper * fpDisplaceScale;
+        double strandSpread = strandLateral * (0.72D + taper * 0.28D) * (firstPerson ? 0.7D : 1.0D);
+        double verticalBend = Math.sin(progress * Math.PI * 1.2D + strandPhase) * 0.015D * fpDisplaceScale;
         return base
                 .add(curve)
                 .add(UP.scale(rise))
