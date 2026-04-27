@@ -24,7 +24,8 @@ final class AntiqueAtlasCompatIntegration {
 
     private static final ResourceLocation GUIDANCE_TEXTURE = ResourceLocation.fromNamespaceAndPath(
             Gracebound.MOD_ID,
-            "map/gracebound_antique_atlas_guidance.png"
+            "map/gracebound_map_guidance.png"
+//            "map/gracebound_antique_atlas_guidance.png"
     );
     private static final String OVERLAY_ID_PATH = "guidance_overlay";
 
