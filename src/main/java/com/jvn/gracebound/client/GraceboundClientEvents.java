@@ -11,6 +11,7 @@ import com.jvn.gracebound.guidance.RuntimeGuidanceState;
 import com.jvn.gracebound.guidance.TargetResolution;
 import com.jvn.gracebound.network.GraceboundConnectionState;
 import com.jvn.gracebound.network.GraceboundNetwork;
+import com.jvn.gracebound.network.GraceboundServerRuntimeSettings;
 import com.jvn.gracebound.settings.GraceboundSettingsView;
 import com.mojang.blaze3d.platform.InputConstants;
 import java.util.Optional;
@@ -124,6 +125,8 @@ public final class GraceboundClientEvents {
                 XaeroCompatBridge.clear();
                 GuidanceRenderState.resetClientState();
                 RuntimeGuidanceState.clearClientSession();
+                GraceboundConnectionState.clear();
+                GraceboundServerRuntimeSettings.clear();
             }
         }
 
