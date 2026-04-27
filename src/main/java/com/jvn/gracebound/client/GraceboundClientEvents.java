@@ -10,7 +10,7 @@ import com.jvn.gracebound.guidance.GuidanceTargetResolver;
 import com.jvn.gracebound.guidance.RuntimeGuidanceState;
 import com.jvn.gracebound.guidance.TargetResolution;
 import com.jvn.gracebound.network.GraceboundNetwork;
-import com.jvn.gracebound.world.GraceboundGameRules;
+import com.jvn.gracebound.settings.GraceboundSettingsView;
 import com.mojang.blaze3d.platform.InputConstants;
 import java.util.Optional;
 import net.minecraft.client.KeyMapping;
@@ -71,12 +71,12 @@ public final class GraceboundClientEvents {
 
             if (minecraft.player != null) {
                 if (!inWorldLastTick && minecraft.level != null) {
-                    RuntimeGuidanceState.resetToDefaultMode(GraceboundGameRules.defaultGuidanceMode(minecraft.level));
+                    RuntimeGuidanceState.resetToDefaultMode(GraceboundSettingsView.defaultGuidanceMode());
                     GraceboundNetwork.syncLocalVisibilityToServer();
                 }
                 inWorldLastTick = true;
                 if (minecraft.level != null) {
-                    GuidanceMode defaultMode = GraceboundGameRules.defaultGuidanceMode(minecraft.level);
+                    GuidanceMode defaultMode = GraceboundSettingsView.defaultGuidanceMode();
                     if (RuntimeGuidanceState.mode() != defaultMode) {
                         RuntimeGuidanceState.resetToDefaultMode(defaultMode);
                     }
@@ -95,7 +95,7 @@ public final class GraceboundClientEvents {
                 XaeroCompatBridge.clientTick(minecraft.player, resolution.target());
 
                 ClientLevel level = minecraft.level;
-                if (level != null && GraceboundGameRules.showOthersGuidanceEnabled(level)) {
+                if (level != null && GraceboundSettingsView.showOthersGuidanceEnabled()) {
                     for (Player player : level.players()) {
                         if (player == minecraft.player) {
                             continue;

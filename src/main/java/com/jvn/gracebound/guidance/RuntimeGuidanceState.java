@@ -1,6 +1,6 @@
 package com.jvn.gracebound.guidance;
 
-import com.jvn.gracebound.world.GraceboundGameRules;
+import com.jvn.gracebound.settings.GraceboundSettingsView;
 import java.util.Optional;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.world.entity.player.Player;
@@ -49,7 +49,7 @@ public final class RuntimeGuidanceState {
         });
 
         if (mode == GuidanceMode.ON_DEATH
-                && GraceboundGameRules.wipeDeathLocationOnArrivalEnabled(player.level())
+                && GraceboundSettingsView.wipeDeathLocationOnArrivalEnabled()
                 && activeDeathGuidanceTarget.isPresent()
                 && !wipeDeathLocationRequestPending) {
             GlobalPos target = activeDeathGuidanceTarget.get();
