@@ -43,6 +43,7 @@ final class AntiqueAtlasCompatIntegration {
     private static final float MIN_DESTINATION_ALPHA = 0.0F;
     private static final float GUIDANCE_TRANSITION_SPEED = 3.5F;
     private static final float MIN_RENDER_ALPHA = 0.01F;
+    private static final float HELD_MODE_DEPTH_BIAS = -0.01F;
 
     private static GuidanceMarker activeMarker;
     private static GuidanceMarker pendingMarker;
@@ -289,6 +290,7 @@ final class AntiqueAtlasCompatIntegration {
             invokeAny(matrices, new String[]{"mulPose", "method_22907", "multiply"}, Axis.ZP.rotationDegrees(rotationDegrees));
 
             int argb = ((int) (Mth.clamp(alpha, 0.0F, 1.0F) * 255.0F) << 24) | 0x00FFFFFF;
+            float drawDepth = vertexConsumers == null ? 0.0F : HELD_MODE_DEPTH_BIAS;
             drawSingleMethod.invoke(
                     null,
                     matrices,
@@ -299,7 +301,7 @@ final class AntiqueAtlasCompatIntegration {
                     light,
                     -ANCHOR_X,
                     -ANCHOR_Y,
-                    0.0F,
+                    drawDepth,
                     TEXTURE_WIDTH,
                     TEXTURE_HEIGHT,
                     0,
