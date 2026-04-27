@@ -2,6 +2,7 @@ package com.jvn.gracebound.network;
 
 import com.jvn.gracebound.Gracebound;
 import com.jvn.gracebound.guidance.GuidanceRenderState;
+import com.jvn.gracebound.guidance.RuntimeGuidanceState;
 import com.jvn.gracebound.world.GraceboundGameRules;
 import java.util.HashMap;
 import java.util.Map;
@@ -52,6 +53,7 @@ public final class GraceboundNetwork {
         PayloadRegistrar registrar = event.registrar(PROTOCOL_VERSION);
         registrar.playToServer(SetGuidanceVisibilityC2SPayload.TYPE, SetGuidanceVisibilityC2SPayload.STREAM_CODEC, GraceboundNetwork::handleSetVisibilityC2S);
         registrar.playToServer(WipeDeathLocationOnArrivalC2SPayload.TYPE, WipeDeathLocationOnArrivalC2SPayload.STREAM_CODEC, GraceboundNetwork::handleWipeDeathLocationOnArrivalC2S);
+        registrar.playToClient(ServerHelloS2CPayload.TYPE, ServerHelloS2CPayload.STREAM_CODEC, GraceboundNetwork::handleServerHelloS2C);
         registrar.playToClient(SetGuidanceVisibilityS2CPayload.TYPE, SetGuidanceVisibilityS2CPayload.STREAM_CODEC, GraceboundNetwork::handleSetVisibilityS2C);
     }
 
@@ -69,6 +71,17 @@ public final class GraceboundNetwork {
         if (context.player().getUUID().equals(payload.playerId())) {
             GuidanceRenderState.setLocalVisible(payload.visible());
         }
+    }
+
+    private static void handleServerHelloS2C(ServerHelloS2CPayload payload, IPayloadContext context) {
+        GraceboundConnectionState.setServerHasGracebound(true);
+        GraceboundServerRuntimeSettings.updateFromServerSync(
+                payload.showOthersGuidance(),
+                payload.defaultGuidanceMode(),
+                payload.showDeathGuidanceWithoutRecoveryCompass(),
+                payload.wipeDeathLocationOnArrival()
+        );
+        RuntimeGuidanceState.resetToDefaultMode(GraceboundServerRuntimeSettings.defaultGuidanceMode());
     }
 
     private static void handleWipeDeathLocationOnArrivalC2S(WipeDeathLocationOnArrivalC2SPayload payload, IPayloadContext context) {
@@ -104,6 +117,16 @@ public final class GraceboundNetwork {
         if (!(event.getEntity() instanceof ServerPlayer serverPlayer)) {
             return;
         }
+
+        PacketDistributor.sendToPlayer(
+                serverPlayer,
+                new ServerHelloS2CPayload(
+                        GraceboundGameRules.showOthersGuidanceEnabled(serverPlayer.level()),
+                        GraceboundGameRules.encodeDefaultGuidanceMode(GraceboundGameRules.defaultGuidanceMode(serverPlayer.level())),
+                        GraceboundGameRules.showDeathGuidanceWithoutRecoveryCompassEnabled(serverPlayer.level()),
+                        GraceboundGameRules.wipeDeathLocationOnArrivalEnabled(serverPlayer.level())
+                )
+        );
 
         for (ServerPlayer onlinePlayer : serverPlayer.server.getPlayerList().getPlayers()) {
             if (!isServerVisible(onlinePlayer.getUUID())) {
@@ -178,6 +201,33 @@ public final class GraceboundNetwork {
                 ByteBufCodecs.BOOL,
                 SetGuidanceVisibilityS2CPayload::visible,
                 SetGuidanceVisibilityS2CPayload::new
+        );
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    public record ServerHelloS2CPayload(
+            boolean showOthersGuidance,
+            int defaultGuidanceMode,
+            boolean showDeathGuidanceWithoutRecoveryCompass,
+            boolean wipeDeathLocationOnArrival
+    ) implements CustomPacketPayload {
+        public static final Type<ServerHelloS2CPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath(Gracebound.MOD_ID, "server_hello_s2c")
+        );
+        public static final StreamCodec<RegistryFriendlyByteBuf, ServerHelloS2CPayload> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.BOOL,
+                ServerHelloS2CPayload::showOthersGuidance,
+                ByteBufCodecs.VAR_INT,
+                ServerHelloS2CPayload::defaultGuidanceMode,
+                ByteBufCodecs.BOOL,
+                ServerHelloS2CPayload::showDeathGuidanceWithoutRecoveryCompass,
+                ByteBufCodecs.BOOL,
+                ServerHelloS2CPayload::wipeDeathLocationOnArrival,
+                ServerHelloS2CPayload::new
         );
 
         @Override
