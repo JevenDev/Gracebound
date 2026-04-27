@@ -36,23 +36,23 @@ final class XaeroCompatIntegration {
             Gracebound.MOD_ID,
             "map/gracebound_map_guidance.png"
     );
-    private static final int TEXTURE_WIDTH = 117;
-    private static final int TEXTURE_HEIGHT = 110;
-    // Anchor the back/near end tip at the player so the trail projects outward toward grace.
-    private static final int ANCHOR_X = TEXTURE_WIDTH - 1;
-    private static final int ANCHOR_Y = 0;
+    private static final int TEXTURE_WIDTH = 100;
+    private static final int TEXTURE_HEIGHT = 193;
+    // Anchor at the lower center so the trail rises outward from the player.
+    private static final int ANCHOR_X = TEXTURE_WIDTH / 2;
+    private static final int ANCHOR_Y = TEXTURE_HEIGHT - 1;
     private static final int BOX_LEFT = -ANCHOR_X;
     private static final int BOX_RIGHT = BOX_LEFT + TEXTURE_WIDTH;
     private static final int BOX_TOP = -ANCHOR_Y;
     private static final int BOX_BOTTOM = BOX_TOP + TEXTURE_HEIGHT;
-    private static final double TEXTURE_FORWARD_DEGREES = 135.0D; // Art forward points toward bottom-left.
+    private static final double TEXTURE_FORWARD_DEGREES = -90.0D; // Art forward points straight up.
     private static final double DESTINATION_RADIUS_BLOCKS = 3.0D;
     private static final double DESTINATION_FADE_BAND_BLOCKS = 2.0D;
     private static final float MIN_DESTINATION_ALPHA = 0.0F;
     private static final float GUIDANCE_TRANSITION_SPEED = 3.5F;
     private static final float MIN_RENDER_ALPHA = 0.01F;
 
-    private static final float MAX_WORLD_MAP_ZOOM_OUT_SCALE = 3.0F;
+    private static final float MAX_WORLD_MAP_ZOOM_OUT_SCALE = 5.0F;
     private static final float MINIMAP_BASE_SCALE_FACTOR = 0.30F;
     private static final float MINIMAP_MIN_SCALE = 0.14F;
     private static final float MINIMAP_FALLBACK_MAX_SCALE = 0.60F;
@@ -428,7 +428,8 @@ final class XaeroCompatIntegration {
 
             applyTextureFiltering(location);
             RenderSystem.enableBlend();
-            RenderSystem.defaultBlendFunc();
+            // Respect PNG transparency/feathered edges on the guidance texture.
+            RenderSystem.blendFunc(GL11C.GL_SRC_ALPHA, GL11C.GL_ONE_MINUS_SRC_ALPHA);
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
             guiGraphics.blit(
                     GUIDANCE_TEXTURE,
