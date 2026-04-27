@@ -44,3 +44,10 @@ type="optional"
 versionRange="[1.21.1,)"
 ordering="NONE"
 side="CLIENT"
+
+[[dependencies.${mod_id}]]
+modId="antique_atlas"
+type="optional"
+versionRange="[0,)"
+ordering="NONE"
+side="CLIENT"

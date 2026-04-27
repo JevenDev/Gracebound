@@ -1,5 +1,6 @@
 package com.jvn.gracebound.client;
 
+import com.jvn.gracebound.client.compat.antiqueatlas.AntiqueAtlasCompatBridge;
 import com.jvn.gracebound.Gracebound;
 import com.jvn.gracebound.client.compat.xaero.XaeroCompatBridge;
 import com.jvn.gracebound.config.GraceboundConfig;
@@ -90,6 +91,7 @@ public final class GraceboundClientEvents {
                         : TargetResolution.none();
                 GraceboundClientMessages.updateCrossDimension(resolution);
                 GraceboundGuidanceVisuals.tick(minecraft.player, resolution.target());
+                AntiqueAtlasCompatBridge.clientTick(minecraft.player, resolution.target());
                 XaeroCompatBridge.clientTick(minecraft.player, resolution.target());
 
                 ClientLevel level = minecraft.level;
@@ -113,6 +115,7 @@ public final class GraceboundClientEvents {
                 inWorldLastTick = false;
                 GraceboundClientMessages.clearState();
                 GraceboundGuidanceVisuals.clearAll();
+                AntiqueAtlasCompatBridge.clear();
                 XaeroCompatBridge.clear();
                 GuidanceRenderState.resetClientState();
                 RuntimeGuidanceState.clearClientSession();

@@ -85,8 +85,21 @@ configurations {
 }
 
 dependencies {
+    // Compile against Xaero APIs/classes without bundling them
     compileOnly "xaero.minimap:xaerominimap-neoforge-${minecraft_version}:${xaero_minimap_version}"
     compileOnly "xaero.map:xaeroworldmap-neoforge-${minecraft_version}:${xaero_worldmap_version}"
+
+    // Load Xaero in the dev runtime
+    runtimeOnly "xaero.minimap:xaerominimap-neoforge-${minecraft_version}:${xaero_minimap_version}"
+    runtimeOnly "xaero.map:xaeroworldmap-neoforge-${minecraft_version}:${xaero_worldmap_version}"
+
+    // Runtime compat test mods from run/mods
+    runtimeOnly files("run/mods/connector-2.0.0-beta.14+1.21.1-full.jar")
+    runtimeOnly files("run/mods/forgified-fabric-api-0.116.7+2.2.4+1.21.1.jar")
+    runtimeOnly files("run/mods/antique-atlas-3.1.2+1.21.jar")
+    runtimeOnly files("run/mods/surveyor-1.1.2+1.21.jar")
+    runtimeOnly files("run/mods/mcqoy-0.4.1+neo-1.21.jar")
+    runtimeOnly files("run/mods/yet_another_config_lib_v3-3.7.0+1.21.1-neoforge.jar")
 }
 
 tasks.named("processResources", ProcessResources).configure {
