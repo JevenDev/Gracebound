@@ -52,7 +52,14 @@ final class XaeroCompatIntegration {
     private static final float GUIDANCE_TRANSITION_SPEED = 3.5F;
     private static final float MIN_RENDER_ALPHA = 0.01F;
 
-    private static final float MAX_WORLD_MAP_ZOOM_OUT_SCALE = 5.0F;
+    // Step caps used as multipliers for current world map zoom scale.
+    private static final float WORLD_MAP_SCALE_CAP_ZOOMED_IN = 0.25F;
+    private static final float WORLD_MAP_SCALE_CAP_NEAR = .5F;
+    private static final float WORLD_MAP_SCALE_CAP_FAR = 1.0F;
+    private static final float WORLD_MAP_SCALE_CAP_FINAL = 5.0F;
+    private static final double WORLD_MAP_SCALE_THRESHOLD_ZOOMED_IN = 2.0D;
+    private static final double WORLD_MAP_SCALE_THRESHOLD_NEAR = 1.0D;
+    private static final double WORLD_MAP_SCALE_THRESHOLD_FAR = 0.5D;
     private static final float MINIMAP_BASE_SCALE_FACTOR = 0.30F;
     private static final float MINIMAP_MIN_SCALE = 0.14F;
     private static final float MINIMAP_FALLBACK_MAX_SCALE = 0.60F;
@@ -552,8 +559,51 @@ final class XaeroCompatIntegration {
                 return optionalScale;
             }
 
-            float cappedLocalScale = (float) Math.min(optionalScale, MAX_WORLD_MAP_ZOOM_OUT_SCALE * mapScale);
+            float stepCap = resolveWorldMapScaleStepCap(mapScale) * (float) mapScale;
+            float cappedLocalScale = Math.min(optionalScale, stepCap);
             return Math.max(0.0F, cappedLocalScale);
+        }
+
+        private static float resolveWorldMapScaleStepCap(double mapScale) {
+            // Xaero world-map zoom uses lower scale values as further zoom-out levels.
+            if (mapScale >= WORLD_MAP_SCALE_THRESHOLD_ZOOMED_IN) {
+                return WORLD_MAP_SCALE_CAP_ZOOMED_IN;
+            }
+            if (mapScale >= WORLD_MAP_SCALE_THRESHOLD_NEAR) {
+                return smoothLerp(
+                        WORLD_MAP_SCALE_CAP_NEAR,
+                        WORLD_MAP_SCALE_CAP_ZOOMED_IN,
+                        WORLD_MAP_SCALE_THRESHOLD_NEAR,
+                        WORLD_MAP_SCALE_THRESHOLD_ZOOMED_IN,
+                        mapScale
+                );
+            }
+            if (mapScale >= WORLD_MAP_SCALE_THRESHOLD_FAR) {
+                return smoothLerp(
+                        WORLD_MAP_SCALE_CAP_FAR,
+                        WORLD_MAP_SCALE_CAP_NEAR,
+                        WORLD_MAP_SCALE_THRESHOLD_FAR,
+                        WORLD_MAP_SCALE_THRESHOLD_NEAR,
+                        mapScale
+                );
+            }
+            return smoothLerp(
+                    WORLD_MAP_SCALE_CAP_FINAL,
+                    WORLD_MAP_SCALE_CAP_FAR,
+                    0.0D,
+                    WORLD_MAP_SCALE_THRESHOLD_FAR,
+                    mapScale
+            );
+        }
+
+        private static float smoothLerp(float lowValue, float highValue, double lowEdge, double highEdge, double sample) {
+            if (highEdge <= lowEdge) {
+                return lowValue;
+            }
+
+            float t = Mth.clamp((float) ((sample - lowEdge) / (highEdge - lowEdge)), 0.0F, 1.0F);
+            float smooth = t * t * (3.0F - 2.0F * t);
+            return Mth.lerp(smooth, lowValue, highValue);
         }
 
         private static MinimapOverMapState readMinimapOverMapState() {
