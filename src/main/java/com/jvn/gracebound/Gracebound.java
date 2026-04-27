@@ -2,6 +2,7 @@ package com.jvn.gracebound;
 
 import com.mojang.logging.LogUtils;
 import com.jvn.gracebound.config.GraceboundConfig;
+import com.jvn.gracebound.network.GraceboundNetwork;
 import com.jvn.gracebound.world.GraceboundGameRules;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -18,6 +19,7 @@ public class Gracebound {
     public Gracebound(IEventBus modEventBus, ModContainer modContainer) {
         GraceboundGameRules.bootstrap();
         GraceboundConfig.register(modEventBus);
+        GraceboundNetwork.register(modEventBus);
         modContainer.registerConfig(ModConfig.Type.CLIENT, GraceboundConfig.SPEC);
         if (FMLEnvironment.dist.isClient()) {
             registerClientConfigScreen(modContainer);

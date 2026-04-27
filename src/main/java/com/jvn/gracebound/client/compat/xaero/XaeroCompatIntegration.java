@@ -418,7 +418,6 @@ final class XaeroCompatIntegration {
             float rotationDegrees = computeRotationDegrees(location, element);
             float alpha = computeAlpha(element);
             if (alpha <= MIN_RENDER_ALPHA) {
-                poseStack.popPose();
                 return true;
             }
 

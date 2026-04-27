@@ -27,7 +27,7 @@ public final class GuidanceTargetResolver {
     }
 
     private static TargetResolution resolve(Player player, boolean includeDeathFallback) {
-        if (RuntimeGuidanceState.mode() == GuidanceMode.OFF) {
+        if (includeDeathFallback && RuntimeGuidanceState.mode() == GuidanceMode.OFF) {
             return TargetResolution.none();
         }
 

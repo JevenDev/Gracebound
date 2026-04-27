@@ -24,6 +24,7 @@ public final class GraceboundGuidanceVisuals {
     private static final double ABSOLUTE_MAX_STREAM_DISTANCE = 6.0D;
     private static final double FULL_REACH_DISTANCE = 16.0D;
     private static final double FULL_REACH_BLEND_DISTANCE = 6.0D;
+    private static final double THIRD_PERSON_CHEST_HEIGHT_RATIO = 0.66D;
     private static final Vec3 UP = new Vec3(0.0D, 1.0D, 0.0D);
     private static final RenderType GRACE_RENDER_TYPE = RenderType.create(
             "gracebound_guidance",
@@ -211,6 +212,10 @@ public final class GraceboundGuidanceVisuals {
         if (firstPerson) {
             origin = origin
                     .add(0.0D, -0.25D, 0.0D);
+        } else {
+            Vec3 bodyPos = player.getPosition(partialTick);
+            double chestY = bodyPos.y + player.getBbHeight() * THIRD_PERSON_CHEST_HEIGHT_RATIO;
+            origin = new Vec3(origin.x, chestY, origin.z);
         }
         Vec3 start = origin.add(forward.scale(startDistance));
         if (!state.trailInitialized) {

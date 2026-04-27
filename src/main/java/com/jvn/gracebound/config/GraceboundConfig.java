@@ -15,10 +15,6 @@ public final class GraceboundConfig {
             .comment("Ticks used to fade guidance in.")
             .defineInRange("fadeInTicks", 10, 0, 200);
 
-    private static final ModConfigSpec.IntValue VISIBLE_DURATION_TICKS = BUILDER
-            .comment("Ticks death guidance remains fully visible before fading.")
-            .defineInRange("visibleDurationTicks", 120, 1, 20 * 60 * 10);
-
     private static final ModConfigSpec.IntValue FADE_OUT_TICKS = BUILDER
             .comment("Ticks used to fade guidance out.")
             .defineInRange("fadeOutTicks", 20, 0, 200);
@@ -63,7 +59,6 @@ public final class GraceboundConfig {
 
     public static boolean enableFade = true;
     public static int fadeInTicks = 10;
-    public static int visibleDurationTicks = 120;
     public static int fadeOutTicks = 20;
     public static double beamDensity = 0.62D;
     public static double beamOriginOffset = 0.0D;
@@ -91,7 +86,6 @@ public final class GraceboundConfig {
     private static void bake() {
         enableFade = ENABLE_FADE.get();
         fadeInTicks = FADE_IN_TICKS.get();
-        visibleDurationTicks = VISIBLE_DURATION_TICKS.get();
         fadeOutTicks = FADE_OUT_TICKS.get();
         beamDensity = BEAM_DENSITY.get();
         beamOriginOffset = BEAM_ORIGIN_OFFSET.get();
