@@ -9,6 +9,7 @@ import com.jvn.gracebound.guidance.GuidanceRenderState;
 import com.jvn.gracebound.guidance.GuidanceTargetResolver;
 import com.jvn.gracebound.guidance.RuntimeGuidanceState;
 import com.jvn.gracebound.guidance.TargetResolution;
+import com.jvn.gracebound.network.GraceboundConnectionState;
 import com.jvn.gracebound.network.GraceboundNetwork;
 import com.jvn.gracebound.settings.GraceboundSettingsView;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -61,7 +62,9 @@ public final class GraceboundClientEvents {
             Minecraft minecraft = Minecraft.getInstance();
             while (CYCLE_MODE.consumeClick()) {
                 boolean visible = GuidanceRenderState.toggleLocalVisible();
-                GraceboundNetwork.syncLocalVisibilityToServer();
+                if (GraceboundConnectionState.serverHasGracebound()) {
+                    GraceboundNetwork.syncLocalVisibilityToServer();
+                }
                 if (GraceboundConfig.showMessages && minecraft.player != null) {
                     minecraft.player.displayClientMessage(visible
                             ? net.minecraft.network.chat.Component.translatable("message.gracebound.visibility.enabled")
@@ -72,7 +75,9 @@ public final class GraceboundClientEvents {
             if (minecraft.player != null) {
                 if (!inWorldLastTick && minecraft.level != null) {
                     RuntimeGuidanceState.resetToDefaultMode(GraceboundSettingsView.defaultGuidanceMode());
-                    GraceboundNetwork.syncLocalVisibilityToServer();
+                    if (GraceboundConnectionState.serverHasGracebound()) {
+                        GraceboundNetwork.syncLocalVisibilityToServer();
+                    }
                 }
                 inWorldLastTick = true;
                 if (minecraft.level != null) {
@@ -83,7 +88,7 @@ public final class GraceboundClientEvents {
                 }
 
                 RuntimeGuidanceState.clientTick(minecraft.player, minecraft.player.getLastDeathLocation());
-                if (RuntimeGuidanceState.consumeWipeDeathLocationRequest()) {
+                if (GraceboundConnectionState.serverHasGracebound() && RuntimeGuidanceState.consumeWipeDeathLocationRequest()) {
                     GraceboundNetwork.requestWipeDeathLocationOnArrival();
                 }
                 TargetResolution resolution = GuidanceRenderState.isLocalVisible()

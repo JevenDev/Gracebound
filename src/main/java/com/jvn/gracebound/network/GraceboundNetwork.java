@@ -42,10 +42,16 @@ public final class GraceboundNetwork {
     }
 
     public static void syncLocalVisibilityToServer() {
+        if (!GraceboundConnectionState.serverHasGracebound()) {
+            return;
+        }
         PacketDistributor.sendToServer(new SetGuidanceVisibilityC2SPayload(GuidanceRenderState.isLocalVisible()));
     }
 
     public static void requestWipeDeathLocationOnArrival() {
+        if (!GraceboundConnectionState.serverHasGracebound()) {
+            return;
+        }
         PacketDistributor.sendToServer(new WipeDeathLocationOnArrivalC2SPayload());
     }
 
@@ -82,6 +88,7 @@ public final class GraceboundNetwork {
                 payload.wipeDeathLocationOnArrival()
         );
         RuntimeGuidanceState.resetToDefaultMode(GraceboundServerRuntimeSettings.defaultGuidanceMode());
+        syncLocalVisibilityToServer();
     }
 
     private static void handleWipeDeathLocationOnArrivalC2S(WipeDeathLocationOnArrivalC2SPayload payload, IPayloadContext context) {
