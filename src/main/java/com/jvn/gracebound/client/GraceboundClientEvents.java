@@ -29,7 +29,10 @@ import org.lwjgl.glfw.GLFW;
 
 public final class GraceboundClientEvents {
     private static final String CATEGORY = "key.categories.gracebound";
+    private static final int FALLBACK_MODE_LOG_DELAY_TICKS = 100;
     private static boolean inWorldLastTick;
+    private static int ticksInSession;
+    private static boolean modeLoggedForSession;
 
     private static final KeyMapping CYCLE_MODE = new KeyMapping(
             "key.gracebound.cycle_mode",
@@ -75,12 +78,24 @@ public final class GraceboundClientEvents {
 
             if (minecraft.player != null) {
                 if (!inWorldLastTick && minecraft.level != null) {
+                    ticksInSession = 0;
+                    modeLoggedForSession = false;
                     RuntimeGuidanceState.resetToDefaultMode(GraceboundSettingsView.defaultGuidanceMode());
                     if (GraceboundConnectionState.serverHasGracebound()) {
                         GraceboundNetwork.syncLocalVisibilityToServer();
                     }
                 }
                 inWorldLastTick = true;
+                if (!modeLoggedForSession) {
+                    if (GraceboundConnectionState.serverHasGracebound()) {
+                        Gracebound.LOGGER.info("Gracebound server support detected; enhanced mode enabled.");
+                        modeLoggedForSession = true;
+                    } else if (ticksInSession >= FALLBACK_MODE_LOG_DELAY_TICKS) {
+                        Gracebound.LOGGER.info("Gracebound running in client-only fallback mode.");
+                        modeLoggedForSession = true;
+                    }
+                }
+                ticksInSession++;
                 if (minecraft.level != null) {
                     GuidanceMode defaultMode = GraceboundSettingsView.defaultGuidanceMode();
                     if (RuntimeGuidanceState.mode() != defaultMode) {
@@ -127,6 +142,8 @@ public final class GraceboundClientEvents {
                 RuntimeGuidanceState.clearClientSession();
                 GraceboundConnectionState.clear();
                 GraceboundServerRuntimeSettings.clear();
+                ticksInSession = 0;
+                modeLoggedForSession = false;
             }
         }
 
