@@ -1,7 +1,9 @@
 package com.jvn.gracebound.config;
 
+import net.minecraft.network.chat.Component;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.event.config.ModConfigEvent;
+import net.neoforged.neoforge.common.TranslatableEnum;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 public final class GraceboundConfig {
@@ -104,8 +106,14 @@ public final class GraceboundConfig {
         showRegularCompassGuidance = SHOW_REGULAR_COMPASS_GUIDANCE.get();
     }
 
-    public enum TrailStyle {
+    public enum TrailStyle implements TranslatableEnum {
         CLASSIC,
-        ENCHANTED
+        ENCHANTED,
+        AURORA;
+
+        @Override
+        public Component getTranslatedName() {
+            return Component.translatable("gracebound.configuration.trailStyle." + name().toLowerCase());
+        }
     }
 }
