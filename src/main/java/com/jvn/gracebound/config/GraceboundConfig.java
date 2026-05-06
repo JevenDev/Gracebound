@@ -39,6 +39,10 @@ public final class GraceboundConfig {
             .comment("Maximum visual length of the guidance stream in blocks.")
             .defineInRange("maxBeamDistance", 6.0D, 4.0D, 96.0D);
 
+    private static final ModConfigSpec.EnumValue<TrailStyle> TRAIL_STYLE = BUILDER
+            .comment("Visual style used for the guidance trail.")
+            .defineEnum("trailStyle", TrailStyle.CLASSIC);
+
     private static final ModConfigSpec.BooleanValue SHOW_MESSAGES = BUILDER
             .comment("Whether Gracebound shows small client-side guidance messages.")
             .define("showMessages", true);
@@ -65,6 +69,7 @@ public final class GraceboundConfig {
     public static double beamStartDistance = 0.0D;
     public static double beamVerticalOffset = -0.92D;
     public static double maxBeamDistance = 6.0D;
+    public static TrailStyle trailStyle = TrailStyle.CLASSIC;
     public static boolean showMessages = true;
     public static boolean showLodestoneGuidance = true;
     public static boolean showRecoveryCompassGuidance = true;
@@ -92,9 +97,15 @@ public final class GraceboundConfig {
         beamStartDistance = BEAM_START_DISTANCE.get();
         beamVerticalOffset = BEAM_VERTICAL_OFFSET.get();
         maxBeamDistance = MAX_BEAM_DISTANCE.get();
+        trailStyle = TRAIL_STYLE.get();
         showMessages = SHOW_MESSAGES.get();
         showLodestoneGuidance = SHOW_LODESTONE_GUIDANCE.get();
         showRecoveryCompassGuidance = SHOW_RECOVERY_COMPASS_GUIDANCE.get();
         showRegularCompassGuidance = SHOW_REGULAR_COMPASS_GUIDANCE.get();
+    }
+
+    public enum TrailStyle {
+        CLASSIC,
+        ENCHANTED
     }
 }

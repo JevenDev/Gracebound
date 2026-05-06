@@ -25,6 +25,8 @@
   "gracebound.configuration.beamVerticalOffset.tooltip": "Vertical offset from eye level for the stream origin.",
   "gracebound.configuration.maxBeamDistance": "Max Beam Distance",
   "gracebound.configuration.maxBeamDistance.tooltip": "Maximum visual guidance distance in blocks.",
+  "gracebound.configuration.trailStyle": "Trail Style",
+  "gracebound.configuration.trailStyle.tooltip": "Changes the visual style used for the guidance trail.",
   "gracebound.configuration.showMessages": "Show Guidance Messages",
   "gracebound.configuration.showMessages.tooltip": "Whether Gracebound shows client-side guidance messages.",
   "gracebound.configuration.showLodestoneGuidance": "Show Lodestone Guidance",

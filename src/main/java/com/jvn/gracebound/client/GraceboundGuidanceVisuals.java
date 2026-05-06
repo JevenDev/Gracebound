@@ -1,6 +1,7 @@
 package com.jvn.gracebound.client;
 
 import com.jvn.gracebound.config.GraceboundConfig;
+import com.jvn.gracebound.config.GraceboundConfig.TrailStyle;
 import com.jvn.gracebound.guidance.GuidanceTarget;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -238,8 +239,13 @@ public final class GraceboundGuidanceVisuals {
         Vec3 turnLateral = forwardDelta.subtract(forward.scale(forwardDelta.dot(forward))).scale(streamLength * 0.35D);
         Vec3 bendVector = lagLateral.add(turnLateral);
 
-        int strandCount = firstPerson ? 3 : Mth.clamp((int)Math.round(4.0D + GraceboundConfig.beamDensity * 4.0D), 4, 9);
-        int segments = firstPerson ? 16 : Math.max(24, (int)Math.ceil(streamLength * (4.5D + GraceboundConfig.beamDensity * 3.0D)));
+        TrailStyle trailStyle = GraceboundConfig.trailStyle;
+        int strandCount = trailStyle == TrailStyle.ENCHANTED
+                ? (firstPerson ? 4 : Mth.clamp((int)Math.round(6.0D + GraceboundConfig.beamDensity * 5.0D), 6, 12))
+                : (firstPerson ? 3 : Mth.clamp((int)Math.round(4.0D + GraceboundConfig.beamDensity * 4.0D), 4, 9));
+        int segments = trailStyle == TrailStyle.ENCHANTED
+                ? (firstPerson ? 20 : Math.max(32, (int)Math.ceil(streamLength * (6.0D + GraceboundConfig.beamDensity * 3.8D))))
+                : (firstPerson ? 16 : Math.max(24, (int)Math.ceil(streamLength * (4.5D + GraceboundConfig.beamDensity * 3.0D))));
         double time = level.getGameTime() + partialTick;
         double baseBendStrength = Mth.clamp(player.getDeltaMovement().length() * 4.0D + lagLateral.length() * 2.8D, 0.0D, 1.0D);
         double bendStrength = firstPerson ? baseBendStrength * 0.75D : baseBendStrength;
@@ -254,23 +260,26 @@ public final class GraceboundGuidanceVisuals {
         for (int strand = 0; strand < strandCount; strand++) {
             float strandT = strandCount == 1 ? 0.5F : (float)strand / (strandCount - 1);
             float centerBias = 1.0F - Math.abs(strandT - 0.5F) * 2.0F;
-            double strandPhase = strand * 1.73D;
-            double strandLateral = (strandT - 0.5D) * 0.12D;
-            float strandAlphaScale = 0.55F + centerBias * 0.95F;
+            double strandPhase = trailStyle == TrailStyle.ENCHANTED ? strand * 2.37D : strand * 1.73D;
+            double strandLateral = (strandT - 0.5D) * (trailStyle == TrailStyle.ENCHANTED ? 0.18D : 0.12D);
+            float strandAlphaScale = trailStyle == TrailStyle.ENCHANTED ? 0.38F + centerBias * 0.9F : 0.55F + centerBias * 0.95F;
 
             for (int i = 0; i < segments; i++) {
                 float t0 = (float)i / segments;
                 float t1 = (float)(i + 1) / segments;
 
-                Vec3 c0 = ribbonPoint(start, forward, right, lift, bendVector, bendStrength, arcDistanceFactor, streamLength, time, t0, strandPhase, strandLateral, firstPerson);
-                Vec3 c1 = ribbonPoint(start, forward, right, lift, bendVector, bendStrength, arcDistanceFactor, streamLength, time, t1, strandPhase, strandLateral, firstPerson);
+                Vec3 c0 = ribbonPoint(start, forward, right, lift, bendVector, bendStrength, arcDistanceFactor, streamLength, time, t0, strandPhase, strandLateral, firstPerson, trailStyle);
+                Vec3 c1 = ribbonPoint(start, forward, right, lift, bendVector, bendStrength, arcDistanceFactor, streamLength, time, t1, strandPhase, strandLateral, firstPerson, trailStyle);
                 Vec3 side0 = ribbonSide(forward, right, c0, camera);
                 Vec3 side1 = ribbonSide(forward, right, c1, camera);
 
-                float width0 = (0.008F + (1.0F - t0) * 0.018F) * intensity * (0.75F + centerBias * 0.35F);
-                float width1 = (0.008F + (1.0F - t1) * 0.018F) * intensity * (0.75F + centerBias * 0.35F);
-                float alpha0 = (0.14F + (1.0F - t0) * 0.28F) * intensity * strandAlphaScale;
-                float alpha1 = (0.14F + (1.0F - t1) * 0.28F) * intensity * strandAlphaScale;
+                float styleWidthScale = trailStyle == TrailStyle.ENCHANTED ? 0.82F + centerBias * 0.42F : 0.75F + centerBias * 0.35F;
+                float styleAlphaBase = trailStyle == TrailStyle.ENCHANTED ? 0.1F : 0.14F;
+                float styleAlphaReach = trailStyle == TrailStyle.ENCHANTED ? 0.36F : 0.28F;
+                float width0 = (0.008F + (1.0F - t0) * (trailStyle == TrailStyle.ENCHANTED ? 0.014F : 0.018F)) * intensity * styleWidthScale;
+                float width1 = (0.008F + (1.0F - t1) * (trailStyle == TrailStyle.ENCHANTED ? 0.014F : 0.018F)) * intensity * styleWidthScale;
+                float alpha0 = (styleAlphaBase + (1.0F - t0) * styleAlphaReach) * intensity * strandAlphaScale;
+                float alpha1 = (styleAlphaBase + (1.0F - t1) * styleAlphaReach) * intensity * strandAlphaScale;
                 float headFade0 = Mth.clamp(t0 / (firstPerson ? 0.08F : 0.14F), 0.0F, 1.0F);
                 float headFade1 = Mth.clamp(t1 / (firstPerson ? 0.08F : 0.14F), 0.0F, 1.0F);
                 headFade0 *= headFade0;
@@ -294,10 +303,14 @@ public final class GraceboundGuidanceVisuals {
                     width1 *= (0.45F + 0.55F * fpTipFade1);
                 }
 
-                addRibbonQuad(consumer, matrix, c0, c1, side0, side1, width0, width1, t0, t1, alpha0, alpha1);
+                float shimmer = Mth.clamp((float)Math.sin(time * 0.38D + strandPhase + (t0 + t1) * 18.0F) * 0.5F + 0.5F, 0.0F, 1.0F);
+                addRibbonQuad(consumer, matrix, c0, c1, side0, side1, width0, width1, t0, t1, alpha0, alpha1, trailStyle, shimmer);
 
                 if (centerBias > 0.92F) {
                     float fpHighlight = firstPerson ? 0.6F : 1.0F;
+                    int highlightR = trailStyle == TrailStyle.ENCHANTED ? 236 : 255;
+                    int highlightG = trailStyle == TrailStyle.ENCHANTED ? 255 : 248;
+                    int highlightB = trailStyle == TrailStyle.ENCHANTED ? 246 : 236;
                     addRibbonQuadTint(
                             consumer,
                             matrix,
@@ -307,9 +320,9 @@ public final class GraceboundGuidanceVisuals {
                             side1,
                             width0 * 0.62F,
                             width1 * 0.62F,
-                            255,
-                            248,
-                            236,
+                            highlightR,
+                            highlightG,
+                            highlightB,
                             alpha0 * 1.12F * fpHighlight,
                             alpha1 * 1.12F * fpHighlight
                     );
@@ -338,6 +351,24 @@ public final class GraceboundGuidanceVisuals {
                         );
                     }
                 }
+
+                if (trailStyle == TrailStyle.ENCHANTED && centerBias > 0.48F && i % 5 == strand % 5) {
+                    float glint = Mth.clamp((float)Math.sin(time * 0.72D + strandPhase * 2.0D + t0 * 41.0F) * 0.5F + 0.5F, 0.0F, 1.0F);
+                    if (glint > 0.5F) {
+                        Vec3 glintSide = side0.add(side1);
+                        glintSide = glintSide.lengthSqr() > 0.0001D ? glintSide.normalize() : side0;
+                        addEnchantedGlint(
+                                consumer,
+                                matrix,
+                                c0.lerp(c1, 0.5D),
+                                glintSide,
+                                lift,
+                                (0.018F + centerBias * 0.018F) * intensity * glint,
+                                alpha0 * (0.45F + glint * 0.35F) * (firstPerson ? 0.45F : 1.0F),
+                                shimmer
+                        );
+                    }
+                }
             }
         }
 
@@ -358,7 +389,8 @@ public final class GraceboundGuidanceVisuals {
             float progress,
             double strandPhase,
             double strandLateral,
-            boolean firstPerson) {
+            boolean firstPerson,
+            TrailStyle trailStyle) {
         double taper = 1.0D - progress;
         double mid = Math.sin(progress * Math.PI);
         double travel = progress * streamLength;
@@ -372,11 +404,23 @@ public final class GraceboundGuidanceVisuals {
         double flutter = Math.cos(time * 0.31D + progress * 14.0D + strandPhase * 1.7D) * 0.018D * taper * fpDisplaceScale;
         double strandSpread = strandLateral * (0.72D + taper * 0.28D) * (firstPerson ? 0.7D : 1.0D);
         double verticalBend = Math.sin(progress * Math.PI * 1.2D + strandPhase) * 0.015D * fpDisplaceScale;
-        return base
+        Vec3 point = base
                 .add(curve)
                 .add(UP.scale(rise))
                 .add(right.scale(strandSpread + meander))
                 .add(lift.scale(flutter + verticalBend));
+        if (trailStyle != TrailStyle.ENCHANTED) {
+            return point;
+        }
+
+        double helix = Math.sin(progress * Math.PI * 5.2D + time * 0.16D + strandPhase);
+        double counterHelix = Math.cos(progress * Math.PI * 4.0D - time * 0.11D + strandPhase * 0.7D);
+        double spellBreath = 0.5D + 0.5D * Math.sin(time * 0.08D + strandPhase);
+        double enchantScale = (0.022D + 0.026D * spellBreath) * mid * fpDisplaceScale;
+        return point
+                .add(right.scale(helix * enchantScale))
+                .add(lift.scale(counterHelix * enchantScale * 0.72D))
+                .add(UP.scale(Math.sin(progress * Math.PI * 2.4D + strandPhase) * 0.018D * mid));
     }
 
     private static Vec3 ribbonSide(Vec3 forward, Vec3 fallbackRight, Vec3 center, Vec3 camera) {
@@ -400,7 +444,22 @@ public final class GraceboundGuidanceVisuals {
             float progressStart,
             float progressEnd,
             float alphaStart,
-            float alphaEnd) {
+            float alphaEnd,
+            TrailStyle trailStyle,
+            float shimmer) {
+        if (trailStyle == TrailStyle.ENCHANTED) {
+            float hueShiftStart = Mth.clamp(progressStart + shimmer * 0.22F, 0.0F, 1.0F);
+            float hueShiftEnd = Mth.clamp(progressEnd + shimmer * 0.22F, 0.0F, 1.0F);
+            int rStart = Mth.clamp((int)(104.0F + shimmer * 88.0F + hueShiftStart * 48.0F), 0, 255);
+            int gStart = Mth.clamp((int)(210.0F + (1.0F - progressStart) * 32.0F), 0, 255);
+            int bStart = Mth.clamp((int)(224.0F + shimmer * 28.0F), 0, 255);
+            int rEnd = Mth.clamp((int)(126.0F + shimmer * 68.0F + hueShiftEnd * 54.0F), 0, 255);
+            int gEnd = Mth.clamp((int)(176.0F + (1.0F - progressEnd) * 52.0F), 0, 255);
+            int bEnd = Mth.clamp((int)(244.0F + shimmer * 11.0F), 0, 255);
+            addRibbonQuadTint(consumer, matrix, start, end, sideStart, sideEnd, widthStart, widthEnd, rStart, gStart, bStart, alphaStart, alphaEnd, rEnd, gEnd, bEnd);
+            return;
+        }
+
         int gStart = Mth.clamp((int)(214.0F + (1.0F - progressStart) * 24.0F), 0, 255);
         int gEnd = Mth.clamp((int)(214.0F + (1.0F - progressEnd) * 24.0F), 0, 255);
         int bStart = Mth.clamp((int)(128.0F + (1.0F - progressStart) * 42.0F), 0, 255);
@@ -423,6 +482,42 @@ public final class GraceboundGuidanceVisuals {
             float alphaStart,
             float alphaEnd) {
         addRibbonQuadTint(consumer, matrix, start, end, sideStart, sideEnd, widthStart, widthEnd, r, g, b, alphaStart, alphaEnd, g, b);
+    }
+
+    private static void addRibbonQuadTint(
+            VertexConsumer consumer,
+            Matrix4f matrix,
+            Vec3 start,
+            Vec3 end,
+            Vec3 sideStart,
+            Vec3 sideEnd,
+            float widthStart,
+            float widthEnd,
+            int rStart,
+            int gStart,
+            int bStart,
+            float alphaStart,
+            float alphaEnd,
+            int rEnd,
+            int gEnd,
+            int bEnd) {
+        Vec3 sL = start.subtract(sideStart.scale(widthStart));
+        Vec3 sR = start.add(sideStart.scale(widthStart));
+        Vec3 eL = end.subtract(sideEnd.scale(widthEnd));
+        Vec3 eR = end.add(sideEnd.scale(widthEnd));
+
+        int aStart = Mth.clamp((int)(alphaStart * 255.0F), 0, 255);
+        int aEnd = Mth.clamp((int)(alphaEnd * 255.0F), 0, 255);
+
+        consumer.addVertex(matrix, (float)sL.x, (float)sL.y, (float)sL.z).setColor(rStart, gStart, bStart, aStart);
+        consumer.addVertex(matrix, (float)eL.x, (float)eL.y, (float)eL.z).setColor(rEnd, gEnd, bEnd, aEnd);
+        consumer.addVertex(matrix, (float)eR.x, (float)eR.y, (float)eR.z).setColor(rEnd, gEnd, bEnd, aEnd);
+        consumer.addVertex(matrix, (float)sR.x, (float)sR.y, (float)sR.z).setColor(rStart, gStart, bStart, aStart);
+
+        consumer.addVertex(matrix, (float)sR.x, (float)sR.y, (float)sR.z).setColor(rStart, gStart, bStart, aStart);
+        consumer.addVertex(matrix, (float)eR.x, (float)eR.y, (float)eR.z).setColor(rEnd, gEnd, bEnd, aEnd);
+        consumer.addVertex(matrix, (float)eL.x, (float)eL.y, (float)eL.z).setColor(rEnd, gEnd, bEnd, aEnd);
+        consumer.addVertex(matrix, (float)sL.x, (float)sL.y, (float)sL.z).setColor(rStart, gStart, bStart, aStart);
     }
 
     private static void addRibbonQuadTint(
@@ -458,5 +553,49 @@ public final class GraceboundGuidanceVisuals {
         consumer.addVertex(matrix, (float)eR.x, (float)eR.y, (float)eR.z).setColor(r, gEnd, bEnd, aEnd);
         consumer.addVertex(matrix, (float)eL.x, (float)eL.y, (float)eL.z).setColor(r, gEnd, bEnd, aEnd);
         consumer.addVertex(matrix, (float)sL.x, (float)sL.y, (float)sL.z).setColor(r, gStart, bStart, aStart);
+    }
+
+    private static void addEnchantedGlint(
+            VertexConsumer consumer,
+            Matrix4f matrix,
+            Vec3 center,
+            Vec3 side,
+            Vec3 lift,
+            float radius,
+            float alpha,
+            float shimmer) {
+        int r = Mth.clamp((int)(178.0F + shimmer * 58.0F), 0, 255);
+        int g = Mth.clamp((int)(238.0F + shimmer * 17.0F), 0, 255);
+        int b = 255;
+        addRibbonQuadTint(
+                consumer,
+                matrix,
+                center.subtract(lift.scale(radius)),
+                center.add(lift.scale(radius)),
+                side,
+                side,
+                radius * 0.62F,
+                radius * 0.62F,
+                r,
+                g,
+                b,
+                alpha,
+                alpha * 0.2F
+        );
+        addRibbonQuadTint(
+                consumer,
+                matrix,
+                center.subtract(side.scale(radius)),
+                center.add(side.scale(radius)),
+                lift,
+                lift,
+                radius * 0.42F,
+                radius * 0.42F,
+                255,
+                244,
+                192,
+                alpha * 0.5F,
+                alpha * 0.1F
+        );
     }
 }
