@@ -1,11 +1,14 @@
 package com.jvn.gracebound.guidance;
 
+import com.jvn.gracebound.config.GraceboundConfig;
+import com.jvn.gracebound.config.GraceboundConfig.TrailStyle;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
 public final class GuidanceRenderState {
     private static final Map<UUID, Boolean> remoteVisibility = new HashMap<>();
+    private static final Map<UUID, TrailStyle> remoteTrailStyles = new HashMap<>();
     private static boolean localVisible = true;
 
     private GuidanceRenderState() {
@@ -32,8 +35,20 @@ public final class GuidanceRenderState {
         remoteVisibility.put(playerId, visible);
     }
 
+    public static TrailStyle trailStyleFor(UUID playerId, UUID localPlayerId) {
+        if (playerId.equals(localPlayerId)) {
+            return GraceboundConfig.trailStyle;
+        }
+        return remoteTrailStyles.getOrDefault(playerId, TrailStyle.CLASSIC);
+    }
+
+    public static void setRemoteTrailStyle(UUID playerId, TrailStyle trailStyle) {
+        remoteTrailStyles.put(playerId, trailStyle);
+    }
+
     public static void resetClientState() {
         localVisible = true;
         remoteVisibility.clear();
+        remoteTrailStyles.clear();
     }
 }

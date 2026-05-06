@@ -2,6 +2,7 @@ package com.jvn.gracebound.client;
 
 import com.jvn.gracebound.config.GraceboundConfig;
 import com.jvn.gracebound.config.GraceboundConfig.TrailStyle;
+import com.jvn.gracebound.guidance.GuidanceRenderState;
 import com.jvn.gracebound.guidance.GuidanceTarget;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -217,7 +218,8 @@ public final class GraceboundGuidanceVisuals {
             arcDistanceFactor = 1.0D + Mth.clamp((rawDistance - FULL_REACH_DISTANCE) / 20.0D, 0.0D, 1.4D);
         }
         Minecraft minecraft = Minecraft.getInstance();
-        boolean firstPerson = minecraft.getCameraEntity() == player && minecraft.options.getCameraType().isFirstPerson();
+        boolean cameraFirstPerson = minecraft.getCameraEntity() == player && minecraft.options.getCameraType().isFirstPerson();
+        boolean firstPerson = cameraFirstPerson && !GraceboundConfig.useThirdPersonTrailInFirstPerson;
         float intensity = state.visibility;
         double startDistance = 0.0D;
         double streamLength = firstPerson
@@ -261,7 +263,7 @@ public final class GraceboundGuidanceVisuals {
         Vec3 turnLateral = forwardDelta.subtract(forward.scale(forwardDelta.dot(forward))).scale(streamLength * 0.35D);
         Vec3 bendVector = lagLateral.add(turnLateral);
 
-        TrailStyle trailStyle = GraceboundConfig.trailStyle;
+        TrailStyle trailStyle = selectedTrailStyle(player);
         int strandCount = trailStyle == TrailStyle.ENCHANTED
                 ? (firstPerson ? 4 : Mth.clamp((int)Math.round(6.0D + GraceboundConfig.beamDensity * 5.0D), 6, 12))
                 : trailStyle == TrailStyle.AURORA
@@ -283,12 +285,20 @@ public final class GraceboundGuidanceVisuals {
         Matrix4f matrix = poseStack.last().pose();
 
         VertexConsumer consumer = minecraft.renderBuffers().bufferSource().getBuffer(GRACE_RENDER_TYPE);
+        if (trailStyle == TrailStyle.SIGIL) {
+            renderSigilTrail(consumer, matrix, start, forward, right, lift, bendVector, bendStrength, arcDistanceFactor, streamLength, time, intensity, firstPerson, camera);
+            trailShader.safeGetUniform("TrailTime").set((float)(time * 0.05D));
+            minecraft.renderBuffers().bufferSource().endBatch(GRACE_RENDER_TYPE);
+            poseStack.popPose();
+            return;
+        }
+
         for (int strand = 0; strand < strandCount; strand++) {
             float strandT = strandCount == 1 ? 0.5F : (float)strand / (strandCount - 1);
             float centerBias = 1.0F - Math.abs(strandT - 0.5F) * 2.0F;
             double strandPhase = trailStyle == TrailStyle.ENCHANTED ? strand * 2.37D : trailStyle == TrailStyle.AURORA ? strand * 2.91D : strand * 1.73D;
-            double strandLateral = (strandT - 0.5D) * (trailStyle == TrailStyle.ENCHANTED ? 0.18D : trailStyle == TrailStyle.AURORA ? 0.24D : 0.12D);
-            float strandAlphaScale = trailStyle == TrailStyle.ENCHANTED ? 0.38F + centerBias * 0.9F : trailStyle == TrailStyle.AURORA ? 0.3F + centerBias * 0.74F : 0.55F + centerBias * 0.95F;
+            double strandLateral = (strandT - 0.5D) * (trailStyle == TrailStyle.ENCHANTED ? 0.22D : trailStyle == TrailStyle.AURORA ? 0.24D : 0.12D);
+            float strandAlphaScale = trailStyle == TrailStyle.ENCHANTED ? 0.34F + centerBias * 0.84F : trailStyle == TrailStyle.AURORA ? 0.3F + centerBias * 0.74F : 0.55F + centerBias * 0.95F;
 
             for (int i = 0; i < segments; i++) {
                 float t0 = (float)i / segments;
@@ -299,11 +309,11 @@ public final class GraceboundGuidanceVisuals {
                 Vec3 side0 = ribbonSide(forward, right, c0, camera);
                 Vec3 side1 = ribbonSide(forward, right, c1, camera);
 
-                float styleWidthScale = trailStyle == TrailStyle.ENCHANTED ? 0.82F + centerBias * 0.42F : trailStyle == TrailStyle.AURORA ? 1.1F + centerBias * 0.34F : 0.75F + centerBias * 0.35F;
-                float styleAlphaBase = trailStyle == TrailStyle.ENCHANTED ? 0.1F : trailStyle == TrailStyle.AURORA ? 0.08F : 0.14F;
-                float styleAlphaReach = trailStyle == TrailStyle.ENCHANTED ? 0.36F : trailStyle == TrailStyle.AURORA ? 0.26F : 0.28F;
-                float width0 = (0.008F + (1.0F - t0) * (trailStyle == TrailStyle.ENCHANTED ? 0.014F : trailStyle == TrailStyle.AURORA ? 0.026F : 0.018F)) * intensity * styleWidthScale;
-                float width1 = (0.008F + (1.0F - t1) * (trailStyle == TrailStyle.ENCHANTED ? 0.014F : trailStyle == TrailStyle.AURORA ? 0.026F : 0.018F)) * intensity * styleWidthScale;
+                float styleWidthScale = trailStyle == TrailStyle.ENCHANTED ? 0.72F + centerBias * 0.58F : trailStyle == TrailStyle.AURORA ? 1.1F + centerBias * 0.34F : 0.75F + centerBias * 0.35F;
+                float styleAlphaBase = trailStyle == TrailStyle.ENCHANTED ? 0.085F : trailStyle == TrailStyle.AURORA ? 0.08F : 0.14F;
+                float styleAlphaReach = trailStyle == TrailStyle.ENCHANTED ? 0.42F : trailStyle == TrailStyle.AURORA ? 0.26F : 0.28F;
+                float width0 = (0.008F + (1.0F - t0) * (trailStyle == TrailStyle.ENCHANTED ? 0.011F : trailStyle == TrailStyle.AURORA ? 0.026F : 0.018F)) * intensity * styleWidthScale;
+                float width1 = (0.008F + (1.0F - t1) * (trailStyle == TrailStyle.ENCHANTED ? 0.011F : trailStyle == TrailStyle.AURORA ? 0.026F : 0.018F)) * intensity * styleWidthScale;
                 float alpha0 = (styleAlphaBase + (1.0F - t0) * styleAlphaReach) * intensity * strandAlphaScale;
                 float alpha1 = (styleAlphaBase + (1.0F - t1) * styleAlphaReach) * intensity * strandAlphaScale;
                 float headFade0 = Mth.clamp(t0 / (firstPerson ? 0.08F : 0.14F), 0.0F, 1.0F);
@@ -378,19 +388,19 @@ public final class GraceboundGuidanceVisuals {
                     }
                 }
 
-                if (trailStyle == TrailStyle.ENCHANTED && centerBias > 0.48F && i % 5 == strand % 5) {
+                if (trailStyle == TrailStyle.ENCHANTED && centerBias > 0.34F && i % 4 == strand % 4) {
                     float glint = Mth.clamp((float)Math.sin(time * 0.72D + strandPhase * 2.0D + t0 * 41.0F) * 0.5F + 0.5F, 0.0F, 1.0F);
-                    if (glint > 0.5F) {
+                    if (glint > 0.36F) {
                         Vec3 glintSide = side0.add(side1);
                         glintSide = glintSide.lengthSqr() > 0.0001D ? glintSide.normalize() : side0;
                         addEnchantedGlint(
                                 consumer,
                                 matrix,
-                                c0.lerp(c1, 0.5D),
+                                c0.lerp(c1, 0.5D).add(right.scale(Math.sin(t0 * 29.0F + strandPhase) * 0.025D)).add(lift.scale(Math.cos(t0 * 23.0F - strandPhase) * 0.018D)),
                                 glintSide,
                                 lift,
-                                (0.018F + centerBias * 0.018F) * intensity * glint,
-                                alpha0 * (0.45F + glint * 0.35F) * (firstPerson ? 0.45F : 1.0F),
+                                (0.016F + centerBias * 0.024F) * intensity * glint,
+                                alpha0 * (0.5F + glint * 0.52F) * (firstPerson ? 0.5F : 1.15F),
                                 shimmer
                         );
                     }
@@ -416,9 +426,240 @@ public final class GraceboundGuidanceVisuals {
             }
         }
 
+        if (trailStyle == TrailStyle.ENCHANTED) {
+            renderEnchantmentParticles(consumer, matrix, start, forward, right, lift, bendVector, bendStrength, arcDistanceFactor, streamLength, time, intensity, firstPerson, camera);
+        }
+
         trailShader.safeGetUniform("TrailTime").set((float)(time * 0.05D));
         minecraft.renderBuffers().bufferSource().endBatch(GRACE_RENDER_TYPE);
         poseStack.popPose();
+    }
+
+    private static void renderEnchantmentParticles(
+            VertexConsumer consumer,
+            Matrix4f matrix,
+            Vec3 start,
+            Vec3 forward,
+            Vec3 right,
+            Vec3 lift,
+            Vec3 bendVector,
+            double bendStrength,
+            double arcDistanceFactor,
+            double streamLength,
+            double time,
+            float intensity,
+            boolean firstPerson,
+            Vec3 camera) {
+        int particleCount = firstPerson ? 18 : Mth.clamp((int)Math.ceil(streamLength * (5.0D + GraceboundConfig.beamDensity * 1.4D)), 22, 48);
+        for (int particle = 0; particle < particleCount; particle++) {
+            double seed = particle * 12.9898D;
+            float progress = (float)((particle + 0.23D + pseudoRandom(seed) * 0.64D) / particleCount);
+            double phase = particle * 2.618D + pseudoRandom(seed + 5.0D) * 3.0D;
+            Vec3 center = ribbonPoint(start, forward, right, lift, bendVector, bendStrength, arcDistanceFactor, streamLength, time, progress, phase, 0.0D, firstPerson, TrailStyle.ENCHANTED);
+            double orbit = time * 0.055D + phase;
+            double radius = (firstPerson ? 0.035D : 0.075D) + pseudoRandom(seed + 2.0D) * (firstPerson ? 0.045D : 0.12D);
+            center = center
+                    .add(right.scale(Math.sin(orbit) * radius))
+                    .add(lift.scale(Math.cos(orbit * 1.31D) * radius * 0.72D))
+                    .add(UP.scale(Math.sin(time * 0.04D + phase) * radius * 0.42D));
+
+            float blink = Mth.clamp((float)Math.sin(time * (0.42D + pseudoRandom(seed + 8.0D) * 0.3D) + phase * 1.7D) * 0.5F + 0.5F, 0.0F, 1.0F);
+            float headFade = Mth.clamp(progress / (firstPerson ? 0.12F : 0.18F), 0.0F, 1.0F);
+            float tailFade = Mth.clamp((1.0F - progress) / (firstPerson ? 0.2F : 0.32F), 0.0F, 1.0F);
+            float alpha = intensity * headFade * tailFade * (0.18F + blink * 0.62F) * (firstPerson ? 0.48F : 0.85F);
+            float size = (firstPerson ? 0.006F : 0.01F) + blink * (firstPerson ? 0.01F : 0.018F);
+            Vec3 side = ribbonSide(forward, right, center, camera);
+            addEnchantmentParticle(consumer, matrix, center, side, lift, progress, size, alpha, blink);
+        }
+    }
+
+    private static double pseudoRandom(double value) {
+        return Mth.frac(Math.sin(value) * 43758.5453123D);
+    }
+
+    private static void addEnchantmentParticle(
+            VertexConsumer consumer,
+            Matrix4f matrix,
+            Vec3 center,
+            Vec3 side,
+            Vec3 lift,
+            float progress,
+            float size,
+            float alpha,
+            float blink) {
+        int a = Mth.clamp((int)(alpha * 255.0F), 0, 255);
+        int r = Mth.clamp((int)(128.0F + blink * 92.0F), 0, 255);
+        int g = Mth.clamp((int)(214.0F + blink * 41.0F), 0, 255);
+        int b = 255;
+        float style = TrailStyle.ENCHANTED.ordinal();
+        Vec3 top = center.add(lift.scale(size * 1.5F));
+        Vec3 rightPoint = center.add(side.scale(size));
+        Vec3 bottom = center.subtract(lift.scale(size * 1.5F));
+        Vec3 leftPoint = center.subtract(side.scale(size));
+
+        addGlyphVertex(consumer, matrix, top, progress, style + 0.84F, 246, 238, 172, a);
+        addGlyphVertex(consumer, matrix, rightPoint, progress, style + 0.62F, r, g, b, a);
+        addGlyphVertex(consumer, matrix, bottom, progress, style + 0.84F, 246, 238, 172, a);
+        addGlyphVertex(consumer, matrix, leftPoint, progress, style + 0.62F, r, g, b, a);
+
+        addGlyphVertex(consumer, matrix, leftPoint, progress, style + 0.62F, r, g, b, a);
+        addGlyphVertex(consumer, matrix, bottom, progress, style + 0.84F, 246, 238, 172, a);
+        addGlyphVertex(consumer, matrix, rightPoint, progress, style + 0.62F, r, g, b, a);
+        addGlyphVertex(consumer, matrix, top, progress, style + 0.84F, 246, 238, 172, a);
+    }
+
+    private static void renderSigilTrail(
+            VertexConsumer consumer,
+            Matrix4f matrix,
+            Vec3 start,
+            Vec3 forward,
+            Vec3 right,
+            Vec3 lift,
+            Vec3 bendVector,
+            double bendStrength,
+            double arcDistanceFactor,
+            double streamLength,
+            double time,
+            float intensity,
+            boolean firstPerson,
+            Vec3 camera) {
+        int glyphCount = firstPerson ? 5 : Mth.clamp((int)Math.ceil(streamLength * 2.15D), 6, 16);
+        Vec3 previousCenter = null;
+        float previousProgress = 0.0F;
+        for (int glyph = 0; glyph < glyphCount; glyph++) {
+            float progress = (glyph + 0.55F) / glyphCount;
+            double phase = glyph * 2.399D;
+            Vec3 center = sigilPoint(start, forward, right, lift, bendVector, bendStrength, arcDistanceFactor, streamLength, time, progress, phase, firstPerson);
+            Vec3 side = ribbonSide(forward, right, center, camera);
+            float headFade = Mth.clamp(progress / (firstPerson ? 0.1F : 0.16F), 0.0F, 1.0F);
+            float tailFade = Mth.clamp((1.0F - progress) / (firstPerson ? 0.24F : 0.34F), 0.0F, 1.0F);
+            float pulse = Mth.clamp((float)Math.sin(time * 0.36D + phase) * 0.5F + 0.5F, 0.0F, 1.0F);
+            float alpha = intensity * headFade * headFade * tailFade * (0.48F + pulse * 0.38F);
+            float size = (firstPerson ? 0.028F : 0.044F) + (float)Math.sin(progress * Math.PI) * (firstPerson ? 0.018F : 0.032F);
+
+            if (previousCenter != null) {
+                Vec3 middle = previousCenter.lerp(center, 0.5D);
+                Vec3 connectorSide = ribbonSide(forward, right, middle, camera);
+                float connectorAlpha = alpha * (firstPerson ? 0.3F : 0.48F);
+                addRibbonQuadTint(
+                        consumer,
+                        matrix,
+                        previousCenter,
+                        center,
+                        connectorSide,
+                        connectorSide,
+                        size * 0.08F,
+                        size * 0.06F,
+                        90,
+                        236,
+                        214,
+                        connectorAlpha * 0.55F,
+                        connectorAlpha,
+                        204,
+                        248,
+                        255,
+                        previousProgress,
+                        progress,
+                        TrailStyle.SIGIL
+                );
+            }
+
+            addSigilGlyph(consumer, matrix, center, side, lift, progress, size, alpha, pulse);
+            if (!firstPerson || glyph % 2 == 0) {
+                addSigilGlyph(
+                        consumer,
+                        matrix,
+                        center.add(forward.scale(size * 0.25D)),
+                        lift,
+                        side.scale(-1.0D),
+                        progress,
+                        size * 0.54F,
+                        alpha * 0.52F,
+                        1.0F - pulse
+                );
+            }
+
+            previousCenter = center;
+            previousProgress = progress;
+        }
+    }
+
+    private static Vec3 sigilPoint(
+            Vec3 start,
+            Vec3 forward,
+            Vec3 right,
+            Vec3 lift,
+            Vec3 bendVector,
+            double bendStrength,
+            double arcDistanceFactor,
+            double streamLength,
+            double time,
+            float progress,
+            double phase,
+            boolean firstPerson) {
+        double mid = Math.sin(progress * Math.PI);
+        double travel = progress * streamLength;
+        Vec3 base = start.add(forward.scale(travel));
+        Vec3 curve = bendVector.scale(mid * (0.18D + bendStrength * 0.42D) * (firstPerson ? 0.55D : 1.0D));
+        double rise = mid * (0.035D + streamLength * (0.012D + arcDistanceFactor * 0.024D));
+        double step = Math.round(Math.sin(phase) * 1.5D) * (firstPerson ? 0.026D : 0.065D);
+        double bob = Math.sin(time * 0.095D + phase) * (firstPerson ? 0.012D : 0.032D);
+        double lockstep = Math.floor(progress * 9.0D + time * 0.018D + phase) % 2.0D == 0.0D ? 1.0D : -1.0D;
+        return base
+                .add(curve)
+                .add(UP.scale(rise))
+                .add(right.scale(step + lockstep * mid * (firstPerson ? 0.018D : 0.038D)))
+                .add(lift.scale(bob));
+    }
+
+    private static void addSigilGlyph(
+            VertexConsumer consumer,
+            Matrix4f matrix,
+            Vec3 center,
+            Vec3 side,
+            Vec3 lift,
+            float progress,
+            float size,
+            float alpha,
+            float pulse) {
+        Vec3 top = center.add(lift.scale(size));
+        Vec3 rightPoint = center.add(side.scale(size * (0.72F + pulse * 0.18F)));
+        Vec3 bottom = center.subtract(lift.scale(size));
+        Vec3 leftPoint = center.subtract(side.scale(size * (0.72F + pulse * 0.18F)));
+        int a = Mth.clamp((int)(alpha * 255.0F), 0, 255);
+        int core = Mth.clamp((int)(188.0F + pulse * 52.0F), 0, 255);
+        float style = TrailStyle.SIGIL.ordinal();
+
+        addGlyphVertex(consumer, matrix, top, progress, style + 0.34F, 244, 255, core, a);
+        addGlyphVertex(consumer, matrix, rightPoint, progress, style + 0.52F, 88, 230, 220, a);
+        addGlyphVertex(consumer, matrix, bottom, progress, style + 0.74F, 244, 255, core, a);
+        addGlyphVertex(consumer, matrix, leftPoint, progress, style + 0.92F, 88, 230, 220, a);
+
+        addGlyphVertex(consumer, matrix, leftPoint, progress, style + 0.92F, 88, 230, 220, a);
+        addGlyphVertex(consumer, matrix, bottom, progress, style + 0.74F, 244, 255, core, a);
+        addGlyphVertex(consumer, matrix, rightPoint, progress, style + 0.52F, 88, 230, 220, a);
+        addGlyphVertex(consumer, matrix, top, progress, style + 0.34F, 244, 255, core, a);
+    }
+
+    private static void addGlyphVertex(
+            VertexConsumer consumer,
+            Matrix4f matrix,
+            Vec3 point,
+            float progress,
+            float uvY,
+            int r,
+            int g,
+            int b,
+            int a) {
+        consumer.addVertex(matrix, (float)point.x, (float)point.y, (float)point.z).setUv(progress, uvY).setColor(r, g, b, a);
+    }
+
+    private static TrailStyle selectedTrailStyle(Player player) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) {
+            return GraceboundConfig.trailStyle;
+        }
+        return GuidanceRenderState.trailStyleFor(player.getUUID(), minecraft.player.getUUID());
     }
 
     private static Vec3 ribbonPoint(

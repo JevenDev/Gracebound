@@ -45,6 +45,10 @@ public final class GraceboundConfig {
             .comment("Visual style used for the guidance trail.")
             .defineEnum("trailStyle", TrailStyle.CLASSIC);
 
+    private static final ModConfigSpec.BooleanValue USE_THIRD_PERSON_TRAIL_IN_FIRST_PERSON = BUILDER
+            .comment("Whether first-person guidance uses the fuller third-person trail presentation instead of the unobtrusive first-person presentation.")
+            .define("useThirdPersonTrailInFirstPerson", false);
+
     private static final ModConfigSpec.BooleanValue SHOW_MESSAGES = BUILDER
             .comment("Whether Gracebound shows small client-side guidance messages.")
             .define("showMessages", true);
@@ -72,6 +76,7 @@ public final class GraceboundConfig {
     public static double beamVerticalOffset = -0.92D;
     public static double maxBeamDistance = 6.0D;
     public static TrailStyle trailStyle = TrailStyle.CLASSIC;
+    public static boolean useThirdPersonTrailInFirstPerson = false;
     public static boolean showMessages = true;
     public static boolean showLodestoneGuidance = true;
     public static boolean showRecoveryCompassGuidance = true;
@@ -100,6 +105,7 @@ public final class GraceboundConfig {
         beamVerticalOffset = BEAM_VERTICAL_OFFSET.get();
         maxBeamDistance = MAX_BEAM_DISTANCE.get();
         trailStyle = TRAIL_STYLE.get();
+        useThirdPersonTrailInFirstPerson = USE_THIRD_PERSON_TRAIL_IN_FIRST_PERSON.get();
         showMessages = SHOW_MESSAGES.get();
         showLodestoneGuidance = SHOW_LODESTONE_GUIDANCE.get();
         showRecoveryCompassGuidance = SHOW_RECOVERY_COMPASS_GUIDANCE.get();
@@ -109,7 +115,8 @@ public final class GraceboundConfig {
     public enum TrailStyle implements TranslatableEnum {
         CLASSIC,
         ENCHANTED,
-        AURORA;
+        AURORA,
+        SIGIL;
 
         @Override
         public Component getTranslatedName() {

@@ -4,6 +4,7 @@ import com.jvn.gracebound.client.compat.antiqueatlas.AntiqueAtlasCompatBridge;
 import com.jvn.gracebound.Gracebound;
 import com.jvn.gracebound.client.compat.xaero.XaeroCompatBridge;
 import com.jvn.gracebound.config.GraceboundConfig;
+import com.jvn.gracebound.config.GraceboundConfig.TrailStyle;
 import com.jvn.gracebound.guidance.GuidanceMode;
 import com.jvn.gracebound.guidance.GuidanceRenderState;
 import com.jvn.gracebound.guidance.GuidanceTargetResolver;
@@ -34,6 +35,7 @@ public final class GraceboundClientEvents {
     private static boolean inWorldLastTick;
     private static int ticksInSession;
     private static boolean modeLoggedForSession;
+    private static TrailStyle lastSyncedTrailStyle = TrailStyle.CLASSIC;
 
     private static final KeyMapping CYCLE_MODE = new KeyMapping(
             "key.gracebound.cycle_mode",
@@ -74,6 +76,7 @@ public final class GraceboundClientEvents {
                 boolean visible = GuidanceRenderState.toggleLocalVisible();
                 if (GraceboundConnectionState.serverHasGracebound()) {
                     GraceboundNetwork.syncLocalVisibilityToServer();
+                    lastSyncedTrailStyle = GraceboundConfig.trailStyle;
                 }
                 if (GraceboundConfig.showMessages && minecraft.player != null) {
                     minecraft.player.displayClientMessage(visible
@@ -89,6 +92,7 @@ public final class GraceboundClientEvents {
                     RuntimeGuidanceState.resetToDefaultMode(GraceboundSettingsView.defaultGuidanceMode());
                     if (GraceboundConnectionState.serverHasGracebound()) {
                         GraceboundNetwork.syncLocalVisibilityToServer();
+                        lastSyncedTrailStyle = GraceboundConfig.trailStyle;
                     }
                 }
                 inWorldLastTick = true;
@@ -106,6 +110,10 @@ public final class GraceboundClientEvents {
                     GuidanceMode defaultMode = GraceboundSettingsView.defaultGuidanceMode();
                     if (RuntimeGuidanceState.mode() != defaultMode) {
                         RuntimeGuidanceState.resetToDefaultMode(defaultMode);
+                    }
+                    if (GraceboundConnectionState.serverHasGracebound() && GraceboundConfig.trailStyle != lastSyncedTrailStyle) {
+                        GraceboundNetwork.syncLocalVisibilityToServer();
+                        lastSyncedTrailStyle = GraceboundConfig.trailStyle;
                     }
                 }
 
@@ -150,6 +158,7 @@ public final class GraceboundClientEvents {
                 GraceboundServerRuntimeSettings.clear();
                 ticksInSession = 0;
                 modeLoggedForSession = false;
+                lastSyncedTrailStyle = TrailStyle.CLASSIC;
             }
         }
 

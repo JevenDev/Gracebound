@@ -1,6 +1,8 @@
 package com.jvn.gracebound.network;
 
 import com.jvn.gracebound.Gracebound;
+import com.jvn.gracebound.config.GraceboundConfig;
+import com.jvn.gracebound.config.GraceboundConfig.TrailStyle;
 import com.jvn.gracebound.guidance.GuidanceRenderState;
 import com.jvn.gracebound.guidance.RuntimeGuidanceState;
 import com.jvn.gracebound.world.GraceboundGameRules;
@@ -26,10 +28,11 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 public final class GraceboundNetwork {
-    private static final String PROTOCOL_VERSION = "1";
+    private static final String PROTOCOL_VERSION = "2";
     private static final double ARRIVAL_RADIUS_BLOCKS = 2.5D;
     private static final double ARRIVAL_RADIUS_SQUARED = ARRIVAL_RADIUS_BLOCKS * ARRIVAL_RADIUS_BLOCKS;
     private static final Map<UUID, Boolean> serverHiddenPlayers = new HashMap<>();
+    private static final Map<UUID, TrailStyle> serverTrailStyles = new HashMap<>();
 
     private GraceboundNetwork() {
     }
@@ -45,7 +48,7 @@ public final class GraceboundNetwork {
         if (!GraceboundConnectionState.serverHasGracebound()) {
             return;
         }
-        PacketDistributor.sendToServer(new SetGuidanceVisibilityC2SPayload(GuidanceRenderState.isLocalVisible()));
+        PacketDistributor.sendToServer(new SetGuidanceVisibilityC2SPayload(GuidanceRenderState.isLocalVisible(), encodeTrailStyle(GraceboundConfig.trailStyle)));
     }
 
     public static void requestWipeDeathLocationOnArrival() {
@@ -69,11 +72,13 @@ public final class GraceboundNetwork {
         }
 
         setServerVisible(serverPlayer.getUUID(), payload.visible());
-        PacketDistributor.sendToAllPlayers(new SetGuidanceVisibilityS2CPayload(serverPlayer.getUUID(), payload.visible()));
+        setServerTrailStyle(serverPlayer.getUUID(), decodeTrailStyle(payload.trailStyle()));
+        PacketDistributor.sendToAllPlayers(new SetGuidanceVisibilityS2CPayload(serverPlayer.getUUID(), payload.visible(), payload.trailStyle()));
     }
 
     private static void handleSetVisibilityS2C(SetGuidanceVisibilityS2CPayload payload, IPayloadContext context) {
         GuidanceRenderState.setRemoteVisible(payload.playerId(), payload.visible());
+        GuidanceRenderState.setRemoteTrailStyle(payload.playerId(), decodeTrailStyle(payload.trailStyle()));
         if (context.player().getUUID().equals(payload.playerId())) {
             GuidanceRenderState.setLocalVisible(payload.visible());
         }
@@ -136,12 +141,14 @@ public final class GraceboundNetwork {
         );
 
         for (ServerPlayer onlinePlayer : serverPlayer.server.getPlayerList().getPlayers()) {
-            if (!isServerVisible(onlinePlayer.getUUID())) {
-                PacketDistributor.sendToPlayer(
-                        serverPlayer,
-                        new SetGuidanceVisibilityS2CPayload(onlinePlayer.getUUID(), false)
-                );
-            }
+            PacketDistributor.sendToPlayer(
+                    serverPlayer,
+                    new SetGuidanceVisibilityS2CPayload(
+                            onlinePlayer.getUUID(),
+                            isServerVisible(onlinePlayer.getUUID()),
+                            encodeTrailStyle(serverTrailStyle(onlinePlayer.getUUID()))
+                    )
+            );
         }
     }
 
@@ -152,21 +159,22 @@ public final class GraceboundNetwork {
         if (!(event.getTarget() instanceof ServerPlayer targetPlayer)) {
             return;
         }
-        if (isServerVisible(targetPlayer.getUUID())) {
-            return;
-        }
-
         PacketDistributor.sendToPlayer(
                 observer,
-                new SetGuidanceVisibilityS2CPayload(targetPlayer.getUUID(), false)
+                new SetGuidanceVisibilityS2CPayload(
+                        targetPlayer.getUUID(),
+                        isServerVisible(targetPlayer.getUUID()),
+                        encodeTrailStyle(serverTrailStyle(targetPlayer.getUUID()))
+                )
         );
     }
 
     private static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         UUID playerId = event.getEntity().getUUID();
         Boolean wasHidden = serverHiddenPlayers.remove(playerId);
+        serverTrailStyles.remove(playerId);
         if (Boolean.TRUE.equals(wasHidden)) {
-            PacketDistributor.sendToAllPlayers(new SetGuidanceVisibilityS2CPayload(playerId, true));
+            PacketDistributor.sendToAllPlayers(new SetGuidanceVisibilityS2CPayload(playerId, true, encodeTrailStyle(TrailStyle.CLASSIC)));
         }
     }
 
@@ -182,13 +190,39 @@ public final class GraceboundNetwork {
         }
     }
 
-    public record SetGuidanceVisibilityC2SPayload(boolean visible) implements CustomPacketPayload {
+    private static TrailStyle serverTrailStyle(UUID playerId) {
+        return serverTrailStyles.getOrDefault(playerId, TrailStyle.CLASSIC);
+    }
+
+    private static void setServerTrailStyle(UUID playerId, TrailStyle trailStyle) {
+        if (trailStyle == TrailStyle.CLASSIC) {
+            serverTrailStyles.remove(playerId);
+        } else {
+            serverTrailStyles.put(playerId, trailStyle);
+        }
+    }
+
+    private static int encodeTrailStyle(TrailStyle trailStyle) {
+        return trailStyle.ordinal();
+    }
+
+    private static TrailStyle decodeTrailStyle(int encodedTrailStyle) {
+        TrailStyle[] values = TrailStyle.values();
+        if (encodedTrailStyle < 0 || encodedTrailStyle >= values.length) {
+            return TrailStyle.CLASSIC;
+        }
+        return values[encodedTrailStyle];
+    }
+
+    public record SetGuidanceVisibilityC2SPayload(boolean visible, int trailStyle) implements CustomPacketPayload {
         public static final Type<SetGuidanceVisibilityC2SPayload> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(Gracebound.MOD_ID, "set_guidance_visibility_c2s")
         );
         public static final StreamCodec<RegistryFriendlyByteBuf, SetGuidanceVisibilityC2SPayload> STREAM_CODEC = StreamCodec.composite(
                 ByteBufCodecs.BOOL,
                 SetGuidanceVisibilityC2SPayload::visible,
+                ByteBufCodecs.VAR_INT,
+                SetGuidanceVisibilityC2SPayload::trailStyle,
                 SetGuidanceVisibilityC2SPayload::new
         );
 
@@ -198,7 +232,7 @@ public final class GraceboundNetwork {
         }
     }
 
-    public record SetGuidanceVisibilityS2CPayload(UUID playerId, boolean visible) implements CustomPacketPayload {
+    public record SetGuidanceVisibilityS2CPayload(UUID playerId, boolean visible, int trailStyle) implements CustomPacketPayload {
         public static final Type<SetGuidanceVisibilityS2CPayload> TYPE = new Type<>(
                 ResourceLocation.fromNamespaceAndPath(Gracebound.MOD_ID, "set_guidance_visibility_s2c")
         );
@@ -207,6 +241,8 @@ public final class GraceboundNetwork {
                 SetGuidanceVisibilityS2CPayload::playerId,
                 ByteBufCodecs.BOOL,
                 SetGuidanceVisibilityS2CPayload::visible,
+                ByteBufCodecs.VAR_INT,
+                SetGuidanceVisibilityS2CPayload::trailStyle,
                 SetGuidanceVisibilityS2CPayload::new
         );
 
