@@ -8,7 +8,6 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -16,15 +15,11 @@ import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.ShaderInstance;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
-import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 import org.joml.Matrix4f;
 
 public final class GraceboundGuidanceVisuals {
@@ -33,16 +28,15 @@ public final class GraceboundGuidanceVisuals {
     private static final double FULL_REACH_BLEND_DISTANCE = 6.0D;
     private static final double THIRD_PERSON_CHEST_HEIGHT_RATIO = 0.66D;
     private static final Vec3 UP = new Vec3(0.0D, 1.0D, 0.0D);
-    private static final ResourceLocation TRAIL_SHADER = ResourceLocation.fromNamespaceAndPath("gracebound", "gracebound_trail");
     private static final RenderType GRACE_RENDER_TYPE = RenderType.create(
             "gracebound_guidance",
-            DefaultVertexFormat.POSITION_TEX_COLOR,
+            DefaultVertexFormat.POSITION_COLOR,
             VertexFormat.Mode.QUADS,
             512,
             false,
             true,
             RenderType.CompositeState.builder()
-                    .setShaderState(new RenderStateShard.ShaderStateShard(GraceboundGuidanceVisuals::trailShader))
+                .setShaderState(RenderType.RENDERTYPE_LIGHTNING_SHADER)
                     .setTransparencyState(RenderType.TRANSLUCENT_TRANSPARENCY)
                     .setCullState(RenderType.NO_CULL)
                     .setDepthTestState(RenderType.LEQUAL_DEPTH_TEST)
@@ -51,7 +45,6 @@ public final class GraceboundGuidanceVisuals {
     );
 
     private static final Map<UUID, TrailState> trailStates = new HashMap<>();
-    private static ShaderInstance trailShader;
 
     private static final class TrailState {
         Optional<GuidanceTarget> lastTarget = Optional.empty();
@@ -63,21 +56,6 @@ public final class GraceboundGuidanceVisuals {
     }
 
     private GraceboundGuidanceVisuals() {
-    }
-
-    public static void registerShaders(RegisterShadersEvent event) {
-        try {
-            event.registerShader(
-                    new ShaderInstance(event.getResourceProvider(), TRAIL_SHADER.toString(), DefaultVertexFormat.POSITION_TEX_COLOR),
-                    shader -> trailShader = shader
-            );
-        } catch (IOException exception) {
-            throw new IllegalStateException("Failed to load Gracebound trail shader", exception);
-        }
-    }
-
-    private static ShaderInstance trailShader() {
-        return trailShader;
     }
 
     public static void tick(Player player, Optional<GuidanceTarget> target) {
@@ -134,7 +112,7 @@ public final class GraceboundGuidanceVisuals {
     }
 
     public static void renderWorld(RenderLevelStageEvent event) {
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES || trailStates.isEmpty() || trailShader == null) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES || trailStates.isEmpty()) {
             return;
         }
 
@@ -287,7 +265,6 @@ public final class GraceboundGuidanceVisuals {
         VertexConsumer consumer = minecraft.renderBuffers().bufferSource().getBuffer(GRACE_RENDER_TYPE);
         if (trailStyle == TrailStyle.SIGIL) {
             renderSigilTrail(consumer, matrix, start, forward, right, lift, bendVector, bendStrength, arcDistanceFactor, streamLength, time, intensity, firstPerson, camera);
-            trailShader.safeGetUniform("TrailTime").set((float)(time * 0.05D));
             minecraft.renderBuffers().bufferSource().endBatch(GRACE_RENDER_TYPE);
             poseStack.popPose();
             return;
@@ -430,7 +407,6 @@ public final class GraceboundGuidanceVisuals {
             renderEnchantmentParticles(consumer, matrix, start, forward, right, lift, bendVector, bendStrength, arcDistanceFactor, streamLength, time, intensity, firstPerson, camera);
         }
 
-        trailShader.safeGetUniform("TrailTime").set((float)(time * 0.05D));
         minecraft.renderBuffers().bufferSource().endBatch(GRACE_RENDER_TYPE);
         poseStack.popPose();
     }
@@ -491,21 +467,20 @@ public final class GraceboundGuidanceVisuals {
         int r = Mth.clamp((int)(128.0F + blink * 92.0F), 0, 255);
         int g = Mth.clamp((int)(214.0F + blink * 41.0F), 0, 255);
         int b = 255;
-        float style = TrailStyle.ENCHANTED.ordinal();
         Vec3 top = center.add(lift.scale(size * 1.5F));
         Vec3 rightPoint = center.add(side.scale(size));
         Vec3 bottom = center.subtract(lift.scale(size * 1.5F));
         Vec3 leftPoint = center.subtract(side.scale(size));
 
-        addGlyphVertex(consumer, matrix, top, progress, style + 0.84F, 246, 238, 172, a);
-        addGlyphVertex(consumer, matrix, rightPoint, progress, style + 0.62F, r, g, b, a);
-        addGlyphVertex(consumer, matrix, bottom, progress, style + 0.84F, 246, 238, 172, a);
-        addGlyphVertex(consumer, matrix, leftPoint, progress, style + 0.62F, r, g, b, a);
+        addGlyphVertex(consumer, matrix, top, 246, 238, 172, a);
+        addGlyphVertex(consumer, matrix, rightPoint, r, g, b, a);
+        addGlyphVertex(consumer, matrix, bottom, 246, 238, 172, a);
+        addGlyphVertex(consumer, matrix, leftPoint, r, g, b, a);
 
-        addGlyphVertex(consumer, matrix, leftPoint, progress, style + 0.62F, r, g, b, a);
-        addGlyphVertex(consumer, matrix, bottom, progress, style + 0.84F, 246, 238, 172, a);
-        addGlyphVertex(consumer, matrix, rightPoint, progress, style + 0.62F, r, g, b, a);
-        addGlyphVertex(consumer, matrix, top, progress, style + 0.84F, 246, 238, 172, a);
+        addGlyphVertex(consumer, matrix, leftPoint, r, g, b, a);
+        addGlyphVertex(consumer, matrix, bottom, 246, 238, 172, a);
+        addGlyphVertex(consumer, matrix, rightPoint, r, g, b, a);
+        addGlyphVertex(consumer, matrix, top, 246, 238, 172, a);
     }
 
     private static void renderSigilTrail(
@@ -628,30 +603,27 @@ public final class GraceboundGuidanceVisuals {
         Vec3 leftPoint = center.subtract(side.scale(size * (0.72F + pulse * 0.18F)));
         int a = Mth.clamp((int)(alpha * 255.0F), 0, 255);
         int core = Mth.clamp((int)(188.0F + pulse * 52.0F), 0, 255);
-        float style = TrailStyle.SIGIL.ordinal();
 
-        addGlyphVertex(consumer, matrix, top, progress, style + 0.34F, 244, 255, core, a);
-        addGlyphVertex(consumer, matrix, rightPoint, progress, style + 0.52F, 88, 230, 220, a);
-        addGlyphVertex(consumer, matrix, bottom, progress, style + 0.74F, 244, 255, core, a);
-        addGlyphVertex(consumer, matrix, leftPoint, progress, style + 0.92F, 88, 230, 220, a);
+        addGlyphVertex(consumer, matrix, top, 244, 255, core, a);
+        addGlyphVertex(consumer, matrix, rightPoint, 88, 230, 220, a);
+        addGlyphVertex(consumer, matrix, bottom, 244, 255, core, a);
+        addGlyphVertex(consumer, matrix, leftPoint, 88, 230, 220, a);
 
-        addGlyphVertex(consumer, matrix, leftPoint, progress, style + 0.92F, 88, 230, 220, a);
-        addGlyphVertex(consumer, matrix, bottom, progress, style + 0.74F, 244, 255, core, a);
-        addGlyphVertex(consumer, matrix, rightPoint, progress, style + 0.52F, 88, 230, 220, a);
-        addGlyphVertex(consumer, matrix, top, progress, style + 0.34F, 244, 255, core, a);
+        addGlyphVertex(consumer, matrix, leftPoint, 88, 230, 220, a);
+        addGlyphVertex(consumer, matrix, bottom, 244, 255, core, a);
+        addGlyphVertex(consumer, matrix, rightPoint, 88, 230, 220, a);
+        addGlyphVertex(consumer, matrix, top, 244, 255, core, a);
     }
 
     private static void addGlyphVertex(
             VertexConsumer consumer,
             Matrix4f matrix,
             Vec3 point,
-            float progress,
-            float uvY,
             int r,
             int g,
             int b,
             int a) {
-        consumer.addVertex(matrix, (float)point.x, (float)point.y, (float)point.z).setUv(progress, uvY).setColor(r, g, b, a);
+        consumer.addVertex(matrix, (float)point.x, (float)point.y, (float)point.z).setColor(r, g, b, a);
     }
 
     private static TrailStyle selectedTrailStyle(Player player) {
@@ -838,19 +810,16 @@ public final class GraceboundGuidanceVisuals {
 
         int aStart = Mth.clamp((int)(alphaStart * 255.0F), 0, 255);
         int aEnd = Mth.clamp((int)(alphaEnd * 255.0F), 0, 255);
-        float styleBase = trailStyle.ordinal();
-        float uvLeft = styleBase + 0.02F;
-        float uvRight = styleBase + 0.22F;
 
-        consumer.addVertex(matrix, (float)sL.x, (float)sL.y, (float)sL.z).setUv(progressStart, uvLeft).setColor(rStart, gStart, bStart, aStart);
-        consumer.addVertex(matrix, (float)eL.x, (float)eL.y, (float)eL.z).setUv(progressEnd, uvLeft).setColor(rEnd, gEnd, bEnd, aEnd);
-        consumer.addVertex(matrix, (float)eR.x, (float)eR.y, (float)eR.z).setUv(progressEnd, uvRight).setColor(rEnd, gEnd, bEnd, aEnd);
-        consumer.addVertex(matrix, (float)sR.x, (float)sR.y, (float)sR.z).setUv(progressStart, uvRight).setColor(rStart, gStart, bStart, aStart);
+        consumer.addVertex(matrix, (float)sL.x, (float)sL.y, (float)sL.z).setColor(rStart, gStart, bStart, aStart);
+        consumer.addVertex(matrix, (float)eL.x, (float)eL.y, (float)eL.z).setColor(rEnd, gEnd, bEnd, aEnd);
+        consumer.addVertex(matrix, (float)eR.x, (float)eR.y, (float)eR.z).setColor(rEnd, gEnd, bEnd, aEnd);
+        consumer.addVertex(matrix, (float)sR.x, (float)sR.y, (float)sR.z).setColor(rStart, gStart, bStart, aStart);
 
-        consumer.addVertex(matrix, (float)sR.x, (float)sR.y, (float)sR.z).setUv(progressStart, uvRight).setColor(rStart, gStart, bStart, aStart);
-        consumer.addVertex(matrix, (float)eR.x, (float)eR.y, (float)eR.z).setUv(progressEnd, uvRight).setColor(rEnd, gEnd, bEnd, aEnd);
-        consumer.addVertex(matrix, (float)eL.x, (float)eL.y, (float)eL.z).setUv(progressEnd, uvLeft).setColor(rEnd, gEnd, bEnd, aEnd);
-        consumer.addVertex(matrix, (float)sL.x, (float)sL.y, (float)sL.z).setUv(progressStart, uvLeft).setColor(rStart, gStart, bStart, aStart);
+        consumer.addVertex(matrix, (float)sR.x, (float)sR.y, (float)sR.z).setColor(rStart, gStart, bStart, aStart);
+        consumer.addVertex(matrix, (float)eR.x, (float)eR.y, (float)eR.z).setColor(rEnd, gEnd, bEnd, aEnd);
+        consumer.addVertex(matrix, (float)eL.x, (float)eL.y, (float)eL.z).setColor(rEnd, gEnd, bEnd, aEnd);
+        consumer.addVertex(matrix, (float)sL.x, (float)sL.y, (float)sL.z).setColor(rStart, gStart, bStart, aStart);
     }
 
     private static void addRibbonQuadTint(
