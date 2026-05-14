@@ -2,6 +2,8 @@ package com.jvn.gracebound.client.compat.xaero;
 
 import com.jvn.gracebound.Gracebound;
 import com.jvn.gracebound.guidance.GuidanceTarget;
+import com.jvn.toucanlib.client.ToucanEasing;
+import com.jvn.toucanlib.util.ToucanIds;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.math.Axis;
@@ -32,10 +34,8 @@ import xaero.map.element.MapElementRenderHandler;
 import xaero.map.mods.minimap.element.MinimapElementRendererWrapper;
 
 final class XaeroCompatIntegration {
-    private static final ResourceLocation GUIDANCE_TEXTURE = ResourceLocation.fromNamespaceAndPath(
-            Gracebound.MOD_ID,
-            "map/gracebound_map_guidance.png"
-    );
+    private static final ToucanIds IDS = ToucanIds.create(Gracebound.MOD_ID);
+    private static final ResourceLocation GUIDANCE_TEXTURE = IDS.id("map/gracebound_map_guidance.png");
     private static final int TEXTURE_WIDTH = 100;
     private static final int TEXTURE_HEIGHT = 193;
     // Anchor at the lower center so the trail rises outward from the player.
@@ -473,7 +473,7 @@ final class XaeroCompatIntegration {
             }
 
             float t = (distanceToTarget - destinationRadius) / fadeBand;
-            float smooth = t * t * (3.0F - 2.0F * t);
+            float smooth = ToucanEasing.smoothstep(t);
             return Mth.lerp(smooth, MIN_DESTINATION_ALPHA, 1.0F);
         }
 

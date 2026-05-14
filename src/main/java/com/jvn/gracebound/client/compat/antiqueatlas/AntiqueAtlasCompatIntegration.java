@@ -2,6 +2,9 @@ package com.jvn.gracebound.client.compat.antiqueatlas;
 
 import com.jvn.gracebound.Gracebound;
 import com.jvn.gracebound.guidance.GuidanceTarget;
+import com.jvn.toucanlib.client.ToucanEasing;
+import com.jvn.toucanlib.util.ToucanIds;
+import com.jvn.toucanlib.util.ToucanResourceLocations;
 import com.mojang.math.Axis;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
@@ -22,11 +25,8 @@ final class AntiqueAtlasCompatIntegration {
     private static final String ATLAS_OVERLAY_CLASS_NAME = "folk.sisby.antique_atlas.gui.AtlasOverlay";
     private static final String ATLAS_DRAW_BATCHER_CLASS_NAME = "folk.sisby.antique_atlas.util.DrawBatcher";
 
-    private static final ResourceLocation GUIDANCE_TEXTURE = ResourceLocation.fromNamespaceAndPath(
-            Gracebound.MOD_ID,
-            "map/gracebound_map_guidance.png"
-//            "map/gracebound_antique_atlas_guidance.png"
-    );
+    private static final ToucanIds IDS = ToucanIds.create(Gracebound.MOD_ID);
+    private static final ResourceLocation GUIDANCE_TEXTURE = IDS.id("map/gracebound_map_guidance.png");
     private static final String OVERLAY_ID_PATH = "guidance_overlay";
 
     private static final int TEXTURE_WIDTH = 100;
@@ -220,7 +220,7 @@ final class AntiqueAtlasCompatIntegration {
         }
 
         float t = (distanceToTarget - destinationRadius) / fadeBand;
-        float smooth = t * t * (3.0F - 2.0F * t);
+        float smooth = ToucanEasing.smoothstep(t);
         return Mth.lerp(smooth, MIN_DESTINATION_ALPHA, 1.0F);
     }
 
@@ -353,7 +353,7 @@ final class AntiqueAtlasCompatIntegration {
     private static Object createIdentifier(Class<?> identifierClass, String namespace, String path)
             throws ReflectiveOperationException {
         if (identifierClass.getName().equals(ResourceLocation.class.getName())) {
-            return ResourceLocation.fromNamespaceAndPath(namespace, path);
+            return ToucanResourceLocations.id(namespace, path);
         }
 
         Object twoArg = invokeStaticStringFactory(identifierClass, new String[]{

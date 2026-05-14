@@ -26,6 +26,17 @@ repositories {
         url = "https://chocolateminecraft.com/maven"
         name = "Xaero's Maven"
     }
+
+    exclusiveContent {
+        forRepository {
+            maven {
+                url = "https://cursemaven.com"
+            }
+        }
+        filter {
+            includeGroup "curse.maven"
+        }
+    }
 }
 
 base {
@@ -85,6 +96,10 @@ configurations {
 }
 
 dependencies {
+    // Public CurseForge/Curse Maven NeoForge helper library used across JVN mods
+    implementation "curse.maven:toucanlib-${toucanlib_project_id}:${toucanlib_neoforge_file_id}"
+    localRuntime "curse.maven:toucanlib-${toucanlib_project_id}:${toucanlib_neoforge_file_id}"
+
     // Compile against Xaero APIs/classes without bundling them
     compileOnly "xaero.minimap:xaerominimap-neoforge-${minecraft_version}:${xaero_minimap_version}"
     compileOnly "xaero.map:xaeroworldmap-neoforge-${minecraft_version}:${xaero_worldmap_version}"
@@ -112,6 +127,11 @@ tasks.named("processResources", ProcessResources).configure {
             mod_name               : mod_name,
             mod_license            : mod_license,
             mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description,
+            mod_display_url        : mod_display_url,
+            mod_issue_tracker      : mod_issue_tracker,
+            toucanlib_version      : toucanlib_version,
     ]
     inputs.properties replaceProperties
     filesMatching("META-INF/neoforge.mods.toml") {

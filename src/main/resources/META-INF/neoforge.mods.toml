@@ -1,7 +1,7 @@
 modLoader="javafml"
 loaderVersion="${loader_version_range}"
 license="${mod_license}"
-issueTrackerURL = "https://github.com/JevenDev/Gracebound/issues"
+issueTrackerURL = "${mod_issue_tracker}"
 
 [[mods]]
 modId="${mod_id}"
@@ -10,10 +10,10 @@ displayName="${mod_name}"
 # Gracebound uses a runtime hello handshake for enhanced mode, so clients can safely connect to servers without Gracebound.
 displayTest="IGNORE_SERVER_VERSION"
 logoFile="logo.png"
-authors="jvn"
-displayURL="https://modrinth.com/mod/gracebound/"
+authors="${mod_authors}"
+displayURL="${mod_display_url}"
 description='''
-May grace guide your way.
+${mod_description}
 '''
 
 #[[mixins]]
@@ -30,6 +30,13 @@ side="BOTH"
 modId="minecraft"
 type="required"
 versionRange="${minecraft_version_range}"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="toucanlib"
+type="required"
+versionRange="[${toucanlib_version},)"
 ordering="NONE"
 side="BOTH"
 
